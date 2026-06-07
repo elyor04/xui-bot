@@ -222,9 +222,6 @@ async def _inline_find_clients(
     lang: str,
     tz: ZoneInfo | None,
 ) -> None:
-    if not q:
-        await query.answer([], cache_time=5, is_personal=True)
-        return
     try:
         result = await api.search_clients(q, page_size=50)
     except Exception:
