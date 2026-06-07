@@ -230,24 +230,20 @@ async def cb_refresh(query: CallbackQuery, callback_data: ClientCB, api: XUIClie
 # --------------------------------------------------------------------------- #
 # Find by email
 # --------------------------------------------------------------------------- #
-def _pick_list_kb(items: list[dict]) -> InlineKeyboardMarkup:
+def _pick_list_kb(clients: list[Client]) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    for item in items:
-        email = item.get("email", "")
-        builder.button(text=email, callback_data=ClientCB(action="view", email=email))
+    for c in clients:
+        builder.button(text=c.email, callback_data=ClientCB(action="view", email=c.email))
     builder.adjust(1)
     return builder.as_markup()
 
 
 async def _search_and_show(message: Message, api: XUIClient, search: str, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     try:
-        result = await api.search_clients(search, page_size=25)
+        clients, filtered = await api.search_clients(search, page_size=25)
     except XUIError as exc:
         await message.answer(f"⚠️ {esc(str(exc))}", reply_markup=back_home(lang))
         return
-
-    items: list[dict] = result.get("items") or []
-    filtered: int = result.get("filtered", len(items))
 
     if filtered == 0:
         await message.answer(
@@ -260,10 +256,10 @@ async def _search_and_show(message: Message, api: XUIClient, search: str, lang: 
         return
 
     if filtered == 1:
-        client = await api.get_client(items[0]["email"])
+        client = await api.get_client(clients[0].email)
         if client is None:
             await message.answer(
-                t("client_not_found", lang, email=esc(items[0]["email"])), reply_markup=back_home(lang)
+                t("client_not_found", lang, email=esc(clients[0].email)), reply_markup=back_home(lang)
             )
             return
         inbound_remarks, is_online, last_online_str = await _fetch_render_extras(api, client, tz)
@@ -275,7 +271,7 @@ async def _search_and_show(message: Message, api: XUIClient, search: str, lang: 
 
     await message.answer(
         t("find_pick_result", lang, count=filtered, q=esc(search)),
-        reply_markup=_pick_list_kb(items),
+        reply_markup=_pick_list_kb(clients),
     )
 
 

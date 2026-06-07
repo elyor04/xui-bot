@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -27,7 +28,7 @@ from bot.keyboards.admin import admin_menu
 from bot.keyboards.callbacks import LangCB, MenuCB, PickModeCB
 from bot.keyboards.client import client_menu, language_picker, mode_picker, pick_client, timezone_kb
 from bot.states import FindClient, SelectTimezone
-from bot.utils.formatting import compact_bytes, esc, fmt_expiry_card
+from bot.utils.formatting import compact_bytes, esc
 
 router = Router(name="common")
 
@@ -213,6 +214,8 @@ async def handle_inline_query(
         await _inline_find_clients(query, api, q, lang, tz)
     elif current_state == SelectTimezone.waiting.state:
         await _inline_timezones(query, q, lang)
+    else:
+        await query.answer([], cache_time=0, is_personal=True)
 
 
 async def _inline_find_clients(
@@ -222,31 +225,37 @@ async def _inline_find_clients(
     lang: str,
     tz: ZoneInfo | None,
 ) -> None:
+    if not q:
+        await query.answer([], cache_time=0, is_personal=True)
+        return
     try:
-        result = await api.search_clients(q, page_size=50)
+        clients, _ = await api.search_clients(q, page_size=50)
     except Exception:
         await query.answer([], cache_time=5, is_personal=True)
         return
 
-    items: list[dict] = result.get("items") or []
     results: list[InlineQueryResultArticle] = []
-    for item in items[:50]:
-        email = item.get("email", "")
-        if not email:
+    for c in clients:
+        if not c.email:
             continue
-        up = item.get("up", 0) or 0
-        down = item.get("down", 0) or 0
-        total_gb = item.get("totalGB", 0) or 0
-        expiry_ms = item.get("expiryTime", 0) or 0
-        used_str = compact_bytes(up + down)
-        quota_str = "∞" if not total_gb else compact_bytes(total_gb)
-        exp_str = fmt_expiry_card(expiry_ms, tz=tz)
+        used_str = compact_bytes(c.up + c.down)
+        quota_str = "∞" if not c.total_gb else compact_bytes(c.total_gb)
+        if not c.expiry_time:
+            exp_str = "∞"
+        elif c.expiry_time < 0:
+            exp_str = f"{abs(c.expiry_time) // (1000 * 86400)}d from start"
+        else:
+            remaining = c.expiry_time / 1000 - time.time()
+            if remaining <= 0:
+                exp_str = "expired"
+            else:
+                exp_str = f"{datetime.fromtimestamp(c.expiry_time / 1000, tz=tz):%Y-%m-%d} ({int(remaining // 86400)}d)"
         results.append(
             InlineQueryResultArticle(
-                id=email,
-                title=email,
+                id=c.email,
+                title=c.email,
                 description=f"{used_str} / {quota_str} · {exp_str}",
-                input_message_content=InputTextMessageContent(message_text=email),
+                input_message_content=InputTextMessageContent(message_text=c.email),
             )
         )
     await query.answer(results, cache_time=5, is_personal=True)

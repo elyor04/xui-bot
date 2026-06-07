@@ -194,8 +194,12 @@ class XUIClient:
         *,
         page: int = 1,
         page_size: int = 25,
-    ) -> dict[str, Any]:
-        """GET /panel/api/clients/list/paged — case-insensitive substring match on email/subId/comment."""
+    ) -> tuple[list[Client], int]:
+        """GET /panel/api/clients/list/paged — case-insensitive substring match on email/subId/comment.
+
+        Returns (clients, filtered_count) where filtered_count is the total number of
+        matching rows across all pages (not just the current page).
+        """
         params: dict[str, Any] = {
             "page": page,
             "pageSize": page_size,
@@ -206,7 +210,12 @@ class XUIClient:
             "order": "",
         }
         obj = await self._request("GET", "/panel/api/clients/list/paged", params=params)
-        return obj if isinstance(obj, dict) else {}
+        if not isinstance(obj, dict):
+            return [], 0
+        raw_items: list[dict] = obj.get("items") or []
+        clients = [Client(**item) for item in raw_items]
+        filtered: int = obj.get("filtered", len(clients))
+        return clients, filtered
 
     async def get_clients_by_tgid(self, tg_id: int) -> list[Client]:
         """Return all panel clients whose tgId matches ``tg_id``."""
