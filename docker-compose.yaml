@@ -4,6 +4,8 @@ services:
     container_name: xui_bot
     command: bash -c "pip3 install -r requirements.txt && python3 -m bot"
     restart: unless-stopped
+    environment:
+      - TZ=Asia/Tashkent
     working_dir: /app
     volumes:
       - .:/app
