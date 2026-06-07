@@ -138,7 +138,11 @@ def online_clients_list(emails: list[str]) -> InlineKeyboardMarkup:
     for email in emails:
         kb.button(text=f"🟢 {email}", callback_data=ClientCB(action="view", email=email))
     kb.adjust(1)
-    kb.attach(_footer())
+    footer = InlineKeyboardBuilder()
+    footer.button(text="🔄 Refresh", callback_data=MenuCB(action="online"))
+    footer.button(text="🏠 Menu", callback_data=MenuCB(action="home"))
+    footer.adjust(2)
+    kb.attach(footer)
     return kb.as_markup()
 
 
