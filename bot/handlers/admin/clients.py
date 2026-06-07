@@ -7,7 +7,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from aiogram import F, Router
-from aiogram.filters import Command, CommandObject
+from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
     BufferedInputFile,
@@ -287,12 +287,9 @@ async def cb_find(query: CallbackQuery, state: FSMContext, lang: str = "en", tz:
 
 
 @router.message(Command("find"))
-async def cmd_find(message: Message, command: CommandObject, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
-    search = (command.args or "").strip()
-    if not search:
-        await message.answer(t("find_cmd_usage", lang))
-        return
-    await _search_and_show(message, api, search, lang, tz)
+async def cmd_find(message: Message, state: FSMContext, lang: str = "en") -> None:
+    await state.set_state(FindClient.email)
+    await message.answer(t("find_prompt", lang), reply_markup=find_prompt_kb(lang))
 
 
 @router.message(FindClient.email, F.text)
