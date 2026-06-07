@@ -295,6 +295,10 @@ async def cmd_find(message: Message, state: FSMContext, lang: str = "en") -> Non
 @router.message(FindClient.email, F.text)
 async def find_email(message: Message, state: FSMContext, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     await state.clear()
+    try:
+        await message.delete()
+    except Exception:
+        pass
     await _search_and_show(message, api, message.text.strip(), lang, tz)
 
 
