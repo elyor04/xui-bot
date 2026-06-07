@@ -2,12 +2,21 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from aiogram import F, Router
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
-from aiogram.types import CallbackQuery, ErrorEvent, Message
+from aiogram.types import (
+    CallbackQuery,
+    ErrorEvent,
+    InlineQuery,
+    InlineQueryResultArticle,
+    InputTextMessageContent,
+    Message,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +25,9 @@ from bot.db.models import Role, User
 from bot.i18n import t
 from bot.keyboards.admin import admin_menu
 from bot.keyboards.callbacks import LangCB, MenuCB, PickModeCB
-from bot.keyboards.client import client_menu, language_picker, mode_picker, pick_client
-from bot.utils.formatting import esc
+from bot.keyboards.client import client_menu, language_picker, mode_picker, pick_client, timezone_kb
+from bot.states import FindClient, SelectTimezone
+from bot.utils.formatting import compact_bytes, esc, fmt_expiry_card
 
 router = Router(name="common")
 
@@ -163,6 +173,152 @@ async def cb_home(query: CallbackQuery, user: User, state: FSMContext, lang: str
 @router.callback_query(MenuCB.filter(F.action == "noop"))
 async def cb_noop(query: CallbackQuery) -> None:
     await query.answer()
+
+
+# ---------------------------------------------------------------------------
+# Timezone selection
+# ---------------------------------------------------------------------------
+_POPULAR_TZ = [
+    "UTC", "Europe/London", "Europe/Paris", "Europe/Berlin", "Europe/Moscow",
+    "Asia/Tashkent", "Asia/Tehran", "Asia/Dubai", "Asia/Kolkata",
+    "Asia/Dhaka", "Asia/Bangkok", "Asia/Shanghai", "Asia/Tokyo",
+    "Africa/Cairo", "America/New_York", "America/Chicago",
+    "America/Denver", "America/Los_Angeles", "America/Sao_Paulo",
+    "Australia/Sydney",
+]
+
+
+@router.message(Command("timezone"))
+async def cmd_timezone(message: Message, user: User, state: FSMContext, lang: str = "en") -> None:
+    await state.set_state(SelectTimezone.waiting)
+    await message.answer(
+        t("tz_title", lang, tz=esc(user.timezone or "UTC")),
+        reply_markup=timezone_kb(lang),
+    )
+
+
+@router.inline_query()
+async def handle_inline_query(
+    query: InlineQuery,
+    user: User,
+    state: FSMContext,
+    api: XUIClient,
+    lang: str = "en",
+    tz: ZoneInfo | None = None,
+) -> None:
+    q = query.query.strip()
+    current_state = await state.get_state()
+
+    if current_state == FindClient.email.state and user.is_admin:
+        await _inline_find_clients(query, api, q, lang, tz)
+    else:
+        await _inline_timezones(query, q, lang)
+
+
+async def _inline_find_clients(
+    query: InlineQuery,
+    api: XUIClient,
+    q: str,
+    lang: str,
+    tz: ZoneInfo | None,
+) -> None:
+    if not q:
+        await query.answer([], cache_time=5, is_personal=True)
+        return
+    try:
+        result = await api.search_clients(q, page_size=50)
+    except Exception:
+        await query.answer([], cache_time=5, is_personal=True)
+        return
+
+    items: list[dict] = result.get("items") or []
+    results: list[InlineQueryResultArticle] = []
+    for item in items[:50]:
+        email = item.get("email", "")
+        if not email:
+            continue
+        up = item.get("up", 0) or 0
+        down = item.get("down", 0) or 0
+        total_gb = item.get("totalGB", 0) or 0
+        expiry_ms = item.get("expiryTime", 0) or 0
+        used_str = compact_bytes(up + down)
+        quota_str = "∞" if not total_gb else compact_bytes(total_gb)
+        exp_str = fmt_expiry_card(expiry_ms, tz=tz)
+        results.append(
+            InlineQueryResultArticle(
+                id=email,
+                title=email,
+                description=f"{used_str} / {quota_str} · {exp_str}",
+                input_message_content=InputTextMessageContent(message_text=email),
+            )
+        )
+    await query.answer(results, cache_time=10, is_personal=True)
+
+
+async def _inline_timezones(query: InlineQuery, q: str, lang: str) -> None:
+    search = q.lower()
+    from zoneinfo import available_timezones
+    all_tzs = sorted(available_timezones())
+
+    if search:
+        def _rank(name: str) -> int:
+            lo = name.lower()
+            city = lo.split("/")[-1]
+            if lo == search:
+                return 0
+            if city == search:
+                return 1
+            if city.startswith(search):
+                return 2
+            if lo.startswith(search):
+                return 3
+            return 4
+
+        candidates = [tz for tz in all_tzs if search in tz.lower()]
+        candidates.sort(key=_rank)
+    else:
+        candidates = [tz for tz in _POPULAR_TZ if tz in all_tzs]
+
+    results: list[InlineQueryResultArticle] = []
+    for tz_name in candidates[:50]:
+        try:
+            tz_obj = ZoneInfo(tz_name)
+            now = datetime.now(tz=tz_obj)
+            offset = now.utcoffset()
+            total_secs = int(offset.total_seconds())
+            sign = "+" if total_secs >= 0 else "-"
+            h, rem = divmod(abs(total_secs), 3600)
+            m = rem // 60
+            offset_str = f"UTC{sign}{h:02d}:{m:02d}"
+            results.append(
+                InlineQueryResultArticle(
+                    id=tz_name,
+                    title=tz_name,
+                    description=f"{offset_str} · now {now:%H:%M}",
+                    input_message_content=InputTextMessageContent(message_text=tz_name),
+                )
+            )
+        except Exception:
+            continue
+
+    await query.answer(results, cache_time=60, is_personal=True)
+
+
+@router.message(SelectTimezone.waiting)
+async def tz_set_message(message: Message, user: User, state: FSMContext, lang: str = "en") -> None:
+    tz_name = (message.text or "").strip()
+    try:
+        ZoneInfo(tz_name)
+        user.timezone = tz_name
+        await user.save()
+        await state.clear()
+        try:
+            await message.delete()
+        except Exception:
+            pass
+        await message.answer(t("tz_set", lang, tz=esc(tz_name)), reply_markup=home_markup(user, lang))
+    except (ZoneInfoNotFoundError, KeyError):
+        await message.answer(t("tz_invalid", lang), reply_markup=timezone_kb(lang))
 
 
 @router.error()

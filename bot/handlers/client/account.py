@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from aiogram import F, Router
 from aiogram.types import BufferedInputFile, CallbackQuery, Message
@@ -13,24 +14,26 @@ from bot.i18n import t
 from bot.keyboards.callbacks import MenuCB, PickClientCB
 from bot.keyboards.client import account_kb, client_home, client_menu, pick_client
 from bot.middlewares.filters import IsClient
-from bot.utils.formatting import LOCAL_TZ, compact_bytes, esc, fmt_expiry_card, fmt_quota_card, make_qr_png
+from bot.utils.formatting import compact_bytes, esc, fmt_expiry_card, fmt_quota_card, make_qr_png
 
 router = Router(name="client-account")
 router.message.filter(IsClient())
 router.callback_query.filter(IsClient())
 
 
-def render_account(client, lang: str = "en", inbound_remarks: list[str] | None = None) -> str:
+def render_account(
+    client, lang: str = "en", inbound_remarks: list[str] | None = None, tz: ZoneInfo | None = None
+) -> str:
     inbounds_label = ", ".join(inbound_remarks) if inbound_remarks else "—"
     quota_label = fmt_quota_card(client.total_gb, client.reset)
-    expiry_label = fmt_expiry_card(client.expiry_time, client.reset)
-    refresh_ts = datetime.now(tz=LOCAL_TZ).strftime("%Y-%m-%d %H:%M:%S")
+    expiry_label = fmt_expiry_card(client.expiry_time, client.reset, tz)
+    refresh_ts = datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S")
 
     last_online_str: str | None = None
     if client.last_online > 0:
         try:
             last_online_str = datetime.fromtimestamp(
-                client.last_online / 1000, tz=LOCAL_TZ
+                client.last_online / 1000, tz=tz
             ).strftime("%Y-%m-%d %H:%M:%S")
         except (ValueError, OSError):
             pass
@@ -53,7 +56,7 @@ def render_account(client, lang: str = "en", inbound_remarks: list[str] | None =
 # Linking
 # --------------------------------------------------------------------------- #
 @router.callback_query(MenuCB.filter(F.action == "link"))
-async def cb_link(query: CallbackQuery, user: User, api: XUIClient, lang: str = "en") -> None:
+async def cb_link(query: CallbackQuery, user: User, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     try:
         matches = await api.get_clients_by_tgid(user.tg_id)
     except XUIError:
@@ -92,7 +95,7 @@ async def cb_pick_client(
 
 
 @router.callback_query(MenuCB.filter(F.action == "unlink"))
-async def cb_unlink(query: CallbackQuery, user: User, lang: str = "en") -> None:
+async def cb_unlink(query: CallbackQuery, user: User, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     user.panel_email = None
     await user.save()
     await query.message.edit_text(t("unlink_done", lang), reply_markup=client_menu(False, lang=lang))
@@ -103,7 +106,7 @@ async def cb_unlink(query: CallbackQuery, user: User, lang: str = "en") -> None:
 # Account info
 # --------------------------------------------------------------------------- #
 @router.callback_query(MenuCB.filter(F.action == "me"))
-async def cb_me(query: CallbackQuery, user: User, api: XUIClient, lang: str = "en") -> None:
+async def cb_me(query: CallbackQuery, user: User, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     if not user.panel_email:
         await query.answer(t("account_no_link", lang), show_alert=True)
         return
@@ -131,14 +134,14 @@ async def cb_me(query: CallbackQuery, user: User, api: XUIClient, lang: str = "e
     except Exception:
         pass
 
-    await query.message.edit_text(render_account(client, lang, inbound_remarks), reply_markup=account_kb(lang))
+    await query.message.edit_text(render_account(client, lang, inbound_remarks, tz), reply_markup=account_kb(lang))
 
 
 # --------------------------------------------------------------------------- #
 # Config links
 # --------------------------------------------------------------------------- #
 @router.callback_query(MenuCB.filter(F.action == "mylinks"))
-async def cb_mylinks(query: CallbackQuery, user: User, api: XUIClient, settings: Settings, lang: str = "en") -> None:
+async def cb_mylinks(query: CallbackQuery, user: User, api: XUIClient, settings: Settings, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     if not user.panel_email:
         await query.answer(t("account_no_link", lang), show_alert=True)
         return
@@ -169,7 +172,7 @@ async def cb_mylinks(query: CallbackQuery, user: User, api: XUIClient, settings:
 # QR codes
 # --------------------------------------------------------------------------- #
 @router.callback_query(MenuCB.filter(F.action == "myqr"))
-async def cb_myqr(query: CallbackQuery, user: User, api: XUIClient, settings: Settings, lang: str = "en") -> None:
+async def cb_myqr(query: CallbackQuery, user: User, api: XUIClient, settings: Settings, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     if not user.panel_email:
         await query.answer(t("account_no_link", lang), show_alert=True)
         return

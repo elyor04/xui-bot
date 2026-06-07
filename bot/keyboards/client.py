@@ -60,6 +60,14 @@ def account_kb(lang: str = "en") -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
+def timezone_kb(lang: str = "en") -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text=t("tz_search_btn", lang), switch_inline_query_current_chat="")
+    kb.button(text=t("btn_cancel", lang), callback_data=MenuCB(action="home"))
+    kb.adjust(1)
+    return kb.as_markup()
+
+
 def language_picker() -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     for code, name in LANGS.items():

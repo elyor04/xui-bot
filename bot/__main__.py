@@ -59,6 +59,7 @@ async def main() -> None:
     auth = AuthMiddleware(settings)
     dp.message.outer_middleware(auth)
     dp.callback_query.outer_middleware(auth)
+    dp.inline_query.outer_middleware(auth)
 
     dp.include_router(build_router())
 
@@ -78,6 +79,7 @@ async def main() -> None:
             [
                 BotCommand(command="start", description="Open the menu"),
                 BotCommand(command="cancel", description="Cancel current action"),
+                BotCommand(command="timezone", description="Set your timezone"),
             ],
             scope=BotCommandScopeAllPrivateChats(),
         )

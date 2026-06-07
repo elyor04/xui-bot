@@ -65,6 +65,14 @@ def back_home(lang: str = "en") -> InlineKeyboardMarkup:
     return kb.as_markup()
 
 
+def find_prompt_kb(lang: str = "en") -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text=t("btn_search_inline", lang), switch_inline_query_current_chat="")
+    kb.button(text=t("btn_menu", lang), callback_data=MenuCB(action="home"))
+    kb.adjust(1)
+    return kb.as_markup()
+
+
 def back_home_refresh(refresh_cb: CallbackData, lang: str = "en") -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text=t("btn_refresh", lang), callback_data=refresh_cb)

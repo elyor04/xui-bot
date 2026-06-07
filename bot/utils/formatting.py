@@ -7,9 +7,17 @@ import json
 import time
 import qrcode
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 GB = 1024 ** 3
 LOCAL_TZ = datetime.now().astimezone().tzinfo
+
+
+def get_tz(name: str) -> ZoneInfo:
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, KeyError):
+        return ZoneInfo("UTC")
 
 
 def make_qr_png(data: str) -> bytes:
@@ -32,7 +40,7 @@ def fmt_quota(total_bytes: int) -> str:
     return "∞" if not total_bytes else human_bytes(total_bytes)
 
 
-def fmt_expiry(expiry_ms: int) -> str:
+def fmt_expiry(expiry_ms: int, tz: ZoneInfo | None = None) -> str:
     """Render a panel expiryTime (unix ms) as a friendly string.
 
     A value of 0 means unlimited. Negative values are interpreted as a
@@ -43,7 +51,7 @@ def fmt_expiry(expiry_ms: int) -> str:
     if expiry_ms < 0:
         days = abs(expiry_ms) // (1000 * 86400)
         return f"{days} days from first use"
-    dt = datetime.fromtimestamp(expiry_ms / 1000, tz=LOCAL_TZ)
+    dt = datetime.fromtimestamp(expiry_ms / 1000, tz=tz or LOCAL_TZ)
     remaining = expiry_ms / 1000 - time.time()
     if remaining <= 0:
         return f"{dt:%Y-%m-%d} (expired)"
@@ -87,7 +95,7 @@ def compact_bytes(n: int | float) -> str:
     return f"{n:.2f}EB"
 
 
-def fmt_expiry_card(expiry_ms: int, reset: int = 0) -> str:
+def fmt_expiry_card(expiry_ms: int, reset: int = 0, tz: ZoneInfo | None = None) -> str:
     """Render expiry in the new card style."""
     suffix = "(Reset)" if reset else ""
     if not expiry_ms:
@@ -95,7 +103,7 @@ def fmt_expiry_card(expiry_ms: int, reset: int = 0) -> str:
     if expiry_ms < 0:
         days = abs(expiry_ms) // (1000 * 86400)
         return f"{days}d from first use{suffix}"
-    dt = datetime.fromtimestamp(expiry_ms / 1000, tz=LOCAL_TZ)
+    dt = datetime.fromtimestamp(expiry_ms / 1000, tz=tz or LOCAL_TZ)
     remaining = expiry_ms / 1000 - time.time()
     if remaining <= 0:
         return f"{dt:%Y-%m-%d} (expired){suffix}"
@@ -115,7 +123,7 @@ def fmt_uptime_days(seconds: int) -> str:
     return f"{int(seconds or 0) // 86400} Days"
 
 
-def extract_last_online(raw: object) -> str | None:
+def extract_last_online(raw: object, tz: ZoneInfo | None = None) -> str | None:
     """Extract the most recent timestamp from a client IP log."""
     if raw is None:
         return None
@@ -143,13 +151,13 @@ def extract_last_online(raw: object) -> str | None:
     if latest_ts is None:
         return None
     try:
-        dt = datetime.fromtimestamp(latest_ts, tz=LOCAL_TZ)
+        dt = datetime.fromtimestamp(latest_ts, tz=tz or LOCAL_TZ)
         return dt.strftime("%Y-%m-%d %H:%M:%S")
     except (ValueError, OSError):
         return None
 
 
-def fmt_ips(raw: object) -> str:
+def fmt_ips(raw: object, tz: ZoneInfo | None = None) -> str:
     """Render an IP log from the panel into a readable string.
 
     Panel sends either:
@@ -182,7 +190,7 @@ def fmt_ips(raw: object) -> str:
             if ts:
                 try:
                     dt = datetime.fromtimestamp(int(ts), tz=timezone.utc)
-                    lines.append(f"<code>{esc(ip)}</code>  {dt.astimezone(LOCAL_TZ):%Y-%m-%d %H:%M}")
+                    lines.append(f"<code>{esc(ip)}</code>  {dt.astimezone(tz or LOCAL_TZ):%Y-%m-%d %H:%M}")
                 except (ValueError, OSError):
                     lines.append(f"<code>{esc(ip)}</code>")
             else:

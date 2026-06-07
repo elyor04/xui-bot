@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 import time
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from aiogram import F, Router
 from aiogram.filters import Command, CommandObject
@@ -30,6 +31,7 @@ from bot.keyboards.admin import (
     clients_list,
     confirm_create,
     confirm_delete,
+    find_prompt_kb,
     inbound_filter,
     inbound_picker,
     ip_log_kb,
@@ -49,7 +51,6 @@ from bot.states import (
     SetTgId,
 )
 from bot.utils.formatting import (
-    LOCAL_TZ,
     compact_bytes,
     esc,
     extract_last_online,
@@ -73,6 +74,7 @@ def render_client(
     c: Client,
     lang: str = "en",
     *,
+    tz: ZoneInfo | None = None,
     inbound_remarks: list[str] | None = None,
     is_online: bool | None = None,
     last_online_str: str | None = None,
@@ -86,8 +88,8 @@ def render_client(
     is_active = c.enable and (c.expiry_time == 0 or c.expiry_time > now_ms)
     active_mark = t("mark_yes", lang) if is_active else t("mark_no", lang)
     quota_label = fmt_quota_card(c.total_gb, c.reset)
-    expiry_label = fmt_expiry_card(c.expiry_time, c.reset)
-    refresh_ts = datetime.now(tz=LOCAL_TZ).strftime("%Y-%m-%d %H:%M:%S")
+    expiry_label = fmt_expiry_card(c.expiry_time, c.reset, tz)
+    refresh_ts = datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S")
 
     lines = [
         t("card_email", lang, v=esc(c.email)),
@@ -112,7 +114,7 @@ def render_client(
 
 
 async def _fetch_render_extras(
-    api: XUIClient, client: Client
+    api: XUIClient, client: Client, tz: ZoneInfo | None = None
 ) -> tuple[list[str] | None, bool | None, str | None]:
     inbound_remarks: list[str] | None = None
     is_online: bool | None = None
@@ -134,7 +136,7 @@ async def _fetch_render_extras(
 
     if client.last_online > 0:
         try:
-            dt = datetime.fromtimestamp(client.last_online / 1000, tz=LOCAL_TZ)
+            dt = datetime.fromtimestamp(client.last_online / 1000, tz=tz)
             last_online_str = dt.strftime("%Y-%m-%d %H:%M:%S")
         except (ValueError, OSError):
             pass
@@ -142,23 +144,25 @@ async def _fetch_render_extras(
     if not last_online_str:
         try:
             raw_ips = await api.client_ips(client.email)
-            last_online_str = extract_last_online(raw_ips)
+            last_online_str = extract_last_online(raw_ips, tz)
         except Exception:
             pass
 
     return inbound_remarks, is_online, last_online_str
 
 
-async def show_card(query: CallbackQuery, api: XUIClient, email: str, lang: str = "en") -> None:
+async def show_card(
+    query: CallbackQuery, api: XUIClient, email: str, lang: str = "en", tz: ZoneInfo | None = None
+) -> None:
     client = await api.get_client(email)
     if client is None:
         await query.message.edit_text(
             t("client_not_found", lang, email=esc(email)), reply_markup=back_home(lang)
         )
         return
-    inbound_remarks, is_online, last_online_str = await _fetch_render_extras(api, client)
+    inbound_remarks, is_online, last_online_str = await _fetch_render_extras(api, client, tz)
     await query.message.edit_text(
-        render_client(client, lang, inbound_remarks=inbound_remarks, is_online=is_online, last_online_str=last_online_str),
+        render_client(client, lang, tz=tz, inbound_remarks=inbound_remarks, is_online=is_online, last_online_str=last_online_str),
         reply_markup=client_card(client, lang),
     )
 
@@ -184,7 +188,7 @@ async def _render_page(
 
 
 @router.callback_query(MenuCB.filter(F.action == "clients"))
-async def cb_clients(query: CallbackQuery, api: XUIClient, lang: str = "en") -> None:
+async def cb_clients(query: CallbackQuery, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     await query.answer(t("loading", lang))
     try:
         options = await api.inbound_options()
@@ -198,7 +202,7 @@ async def cb_clients(query: CallbackQuery, api: XUIClient, lang: str = "en") -> 
 
 
 @router.callback_query(PageCB.filter(F.target == "clients"))
-async def cb_clients_page(query: CallbackQuery, callback_data: PageCB, api: XUIClient, lang: str = "en") -> None:
+async def cb_clients_page(query: CallbackQuery, callback_data: PageCB, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     await query.answer()
     try:
         text, chunk, pages = await _render_page(api, callback_data.page, callback_data.inbound_id, lang)
@@ -212,15 +216,15 @@ async def cb_clients_page(query: CallbackQuery, callback_data: PageCB, api: XUIC
 
 
 @router.callback_query(ClientCB.filter(F.action == "view"))
-async def cb_view(query: CallbackQuery, callback_data: ClientCB, api: XUIClient, lang: str = "en") -> None:
+async def cb_view(query: CallbackQuery, callback_data: ClientCB, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     await query.answer()
-    await show_card(query, api, callback_data.email, lang)
+    await show_card(query, api, callback_data.email, lang, tz)
 
 
 @router.callback_query(ClientCB.filter(F.action == "refresh"))
-async def cb_refresh(query: CallbackQuery, callback_data: ClientCB, api: XUIClient, lang: str = "en") -> None:
+async def cb_refresh(query: CallbackQuery, callback_data: ClientCB, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     await query.answer(t("loading", lang))
-    await show_card(query, api, callback_data.email, lang)
+    await show_card(query, api, callback_data.email, lang, tz)
 
 
 # --------------------------------------------------------------------------- #
@@ -235,7 +239,7 @@ def _pick_list_kb(items: list[dict]) -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-async def _search_and_show(message: Message, api: XUIClient, search: str, lang: str = "en") -> None:
+async def _search_and_show(message: Message, api: XUIClient, search: str, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     try:
         result = await api.search_clients(search, page_size=25)
     except XUIError as exc:
@@ -262,9 +266,9 @@ async def _search_and_show(message: Message, api: XUIClient, search: str, lang: 
                 t("client_not_found", lang, email=esc(items[0]["email"])), reply_markup=back_home(lang)
             )
             return
-        inbound_remarks, is_online, last_online_str = await _fetch_render_extras(api, client)
+        inbound_remarks, is_online, last_online_str = await _fetch_render_extras(api, client, tz)
         await message.answer(
-            render_client(client, lang, inbound_remarks=inbound_remarks, is_online=is_online, last_online_str=last_online_str),
+            render_client(client, lang, tz=tz, inbound_remarks=inbound_remarks, is_online=is_online, last_online_str=last_online_str),
             reply_markup=client_card(client, lang),
         )
         return
@@ -276,42 +280,42 @@ async def _search_and_show(message: Message, api: XUIClient, search: str, lang: 
 
 
 @router.callback_query(MenuCB.filter(F.action == "find"))
-async def cb_find(query: CallbackQuery, state: FSMContext, lang: str = "en") -> None:
+async def cb_find(query: CallbackQuery, state: FSMContext, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     await state.set_state(FindClient.email)
-    await query.message.edit_text(t("find_prompt", lang), reply_markup=back_home(lang))
+    await query.message.edit_text(t("find_prompt", lang), reply_markup=find_prompt_kb(lang))
     await query.answer()
 
 
 @router.message(Command("find"))
-async def cmd_find(message: Message, command: CommandObject, api: XUIClient, lang: str = "en") -> None:
+async def cmd_find(message: Message, command: CommandObject, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     search = (command.args or "").strip()
     if not search:
         await message.answer(t("find_cmd_usage", lang))
         return
-    await _search_and_show(message, api, search, lang)
+    await _search_and_show(message, api, search, lang, tz)
 
 
 @router.message(FindClient.email, F.text)
-async def find_email(message: Message, state: FSMContext, api: XUIClient, lang: str = "en") -> None:
+async def find_email(message: Message, state: FSMContext, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     await state.clear()
-    await _search_and_show(message, api, message.text.strip(), lang)
+    await _search_and_show(message, api, message.text.strip(), lang, tz)
 
 
 # --------------------------------------------------------------------------- #
 # Per-client actions: reset, toggle, links, IPs, sub, QR
 # --------------------------------------------------------------------------- #
 @router.callback_query(ClientCB.filter(F.action == "reset"))
-async def cb_reset(query: CallbackQuery, callback_data: ClientCB, api: XUIClient, lang: str = "en") -> None:
+async def cb_reset(query: CallbackQuery, callback_data: ClientCB, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     try:
         await api.reset_client_traffic(callback_data.email)
         await query.answer(t("traffic_reset_done", lang))
     except XUIError as exc:
         await query.answer(str(exc)[:180], show_alert=True)
-    await show_card(query, api, callback_data.email, lang)
+    await show_card(query, api, callback_data.email, lang, tz)
 
 
 @router.callback_query(ClientCB.filter(F.action == "toggle"))
-async def cb_toggle(query: CallbackQuery, callback_data: ClientCB, api: XUIClient, lang: str = "en") -> None:
+async def cb_toggle(query: CallbackQuery, callback_data: ClientCB, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     client = await api.get_client(callback_data.email)
     if client is None:
         await query.answer(t("not_found_alert", lang), show_alert=True)
@@ -322,11 +326,11 @@ async def cb_toggle(query: CallbackQuery, callback_data: ClientCB, api: XUIClien
         await query.answer(t("updated_ok", lang))
     except XUIError as exc:
         await query.answer(str(exc)[:180], show_alert=True)
-    await show_card(query, api, callback_data.email, lang)
+    await show_card(query, api, callback_data.email, lang, tz)
 
 
 @router.callback_query(ClientCB.filter(F.action == "links"))
-async def cb_links(query: CallbackQuery, callback_data: ClientCB, api: XUIClient, lang: str = "en") -> None:
+async def cb_links(query: CallbackQuery, callback_data: ClientCB, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     await query.answer(t("loading", lang))
     try:
         links = await api.client_links(callback_data.email)
@@ -344,14 +348,14 @@ async def cb_links(query: CallbackQuery, callback_data: ClientCB, api: XUIClient
 
 
 @router.callback_query(ClientCB.filter(F.action == "ips"))
-async def cb_ips(query: CallbackQuery, callback_data: ClientCB, api: XUIClient, lang: str = "en") -> None:
+async def cb_ips(query: CallbackQuery, callback_data: ClientCB, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     await query.answer(t("loading", lang))
     try:
         raw = await api.client_ips(callback_data.email)
     except XUIError as exc:
         await query.answer(str(exc)[:180], show_alert=True)
         return
-    body = fmt_ips(raw)
+    body = fmt_ips(raw, tz)
     await query.message.edit_text(
         f"{t('ips_title', lang, email=esc(callback_data.email))}\n\n{body}",
         reply_markup=ip_log_kb(callback_data.email, lang),
@@ -359,18 +363,18 @@ async def cb_ips(query: CallbackQuery, callback_data: ClientCB, api: XUIClient, 
 
 
 @router.callback_query(ClientCB.filter(F.action == "clearips"))
-async def cb_clearips(query: CallbackQuery, callback_data: ClientCB, api: XUIClient, lang: str = "en") -> None:
+async def cb_clearips(query: CallbackQuery, callback_data: ClientCB, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     try:
         await api.clear_client_ips(callback_data.email)
         await query.answer(t("ip_list_cleared", lang))
     except XUIError as exc:
         await query.answer(str(exc)[:180], show_alert=True)
-    await show_card(query, api, callback_data.email, lang)
+    await show_card(query, api, callback_data.email, lang, tz)
 
 
 @router.callback_query(ClientCB.filter(F.action == "sublinks"))
 async def cb_sublinks(
-    query: CallbackQuery, callback_data: ClientCB, api: XUIClient, settings: Settings, lang: str = "en"
+    query: CallbackQuery, callback_data: ClientCB, api: XUIClient, settings: Settings, lang: str = "en", tz: ZoneInfo | None = None
 ) -> None:
     await query.answer(t("loading", lang))
     client = await api.get_client(callback_data.email)
@@ -396,7 +400,7 @@ async def cb_sublinks(
 
 @router.callback_query(ClientCB.filter(F.action == "qr"))
 async def cb_qr(
-    query: CallbackQuery, callback_data: ClientCB, api: XUIClient, settings: Settings, lang: str = "en"
+    query: CallbackQuery, callback_data: ClientCB, api: XUIClient, settings: Settings, lang: str = "en", tz: ZoneInfo | None = None
 ) -> None:
     await query.answer(t("qr_generating", lang))
     client = await api.get_client(callback_data.email)
@@ -440,7 +444,7 @@ async def cb_qr(
 # Delete (with confirmation)
 # --------------------------------------------------------------------------- #
 @router.callback_query(ClientCB.filter(F.action == "del"))
-async def cb_del(query: CallbackQuery, callback_data: ClientCB, lang: str = "en") -> None:
+async def cb_del(query: CallbackQuery, callback_data: ClientCB, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     await query.message.edit_text(
         t("del_confirm", lang, email=esc(callback_data.email)),
         reply_markup=confirm_delete(callback_data.email, lang),
@@ -449,7 +453,7 @@ async def cb_del(query: CallbackQuery, callback_data: ClientCB, lang: str = "en"
 
 
 @router.callback_query(ConfirmCB.filter((F.action == "yes") & (F.scope == "del")))
-async def cb_del_confirm(query: CallbackQuery, callback_data: ConfirmCB, api: XUIClient, lang: str = "en") -> None:
+async def cb_del_confirm(query: CallbackQuery, callback_data: ConfirmCB, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     try:
         await api.delete_client(callback_data.arg)
         await query.answer(t("deleted_ok", lang))
@@ -465,7 +469,7 @@ async def cb_del_confirm(query: CallbackQuery, callback_data: ConfirmCB, api: XU
 # --------------------------------------------------------------------------- #
 @router.callback_query(ClientCB.filter(F.action == "set_tgid"))
 async def cb_set_tgid(
-    query: CallbackQuery, callback_data: ClientCB, state: FSMContext, lang: str = "en"
+    query: CallbackQuery, callback_data: ClientCB, state: FSMContext, lang: str = "en", tz: ZoneInfo | None = None
 ) -> None:
     email = callback_data.email
     await state.set_state(SetTgId.waiting)
@@ -490,7 +494,7 @@ async def cb_set_tgid(
 
 @router.message(SetTgId.waiting, F.users_shared)
 async def handle_tgid_pick(
-    message: Message, state: FSMContext, api: XUIClient, lang: str = "en"
+    message: Message, state: FSMContext, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None
 ) -> None:
     data = await state.get_data()
     email = data["email"]
@@ -507,7 +511,7 @@ async def handle_tgid_pick(
 
 @router.message(SetTgId.waiting, F.text)
 async def handle_tgid_text(
-    message: Message, state: FSMContext, api: XUIClient, lang: str = "en"
+    message: Message, state: FSMContext, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None
 ) -> None:
     data = await state.get_data()
     email = data["email"]
@@ -530,7 +534,7 @@ async def handle_tgid_text(
 
 
 async def _apply_tgid(
-    message: Message, api: XUIClient, email: str, tg_id: int, lang: str = "en"
+    message: Message, api: XUIClient, email: str, tg_id: int, lang: str = "en", tz: ZoneInfo | None = None
 ) -> None:
     client = await api.get_client(email)
     if client is None:
@@ -553,7 +557,7 @@ async def _apply_tgid(
     if updated:
         inbound_remarks, is_online, last_online_str = await _fetch_render_extras(api, updated)
         await message.answer(
-            render_client(updated, lang, inbound_remarks=inbound_remarks, is_online=is_online, last_online_str=last_online_str),
+            render_client(updated, lang, tz=tz, inbound_remarks=inbound_remarks, is_online=is_online, last_online_str=last_online_str),
             reply_markup=client_card(updated, lang),
         )
 
@@ -562,7 +566,7 @@ async def _apply_tgid(
 # Extend days — quick-pick keyboard + text fallback
 # --------------------------------------------------------------------------- #
 @router.callback_query(ClientCB.filter(F.action == "extend"))
-async def cb_extend(query: CallbackQuery, callback_data: ClientCB, lang: str = "en") -> None:
+async def cb_extend(query: CallbackQuery, callback_data: ClientCB, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     await query.message.edit_text(
         t("extend_prompt", lang, email=esc(callback_data.email)),
         reply_markup=quick_days(callback_data.email, field="extend", lang=lang),
@@ -572,7 +576,7 @@ async def cb_extend(query: CallbackQuery, callback_data: ClientCB, lang: str = "
 
 @router.callback_query(QuickPickCB.filter(F.field == "extend"))
 async def cb_qp_extend(
-    query: CallbackQuery, callback_data: QuickPickCB, state: FSMContext, api: XUIClient, lang: str = "en"
+    query: CallbackQuery, callback_data: QuickPickCB, state: FSMContext, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None
 ) -> None:
     email = callback_data.email
     if callback_data.value == -1:
@@ -602,11 +606,11 @@ async def cb_qp_extend(
         return
 
     await query.answer("✅")
-    await show_card(query, api, email, lang)
+    await show_card(query, api, email, lang, tz)
 
 
 @router.message(ExtendClient.days, F.text)
-async def extend_days(message: Message, state: FSMContext, api: XUIClient, lang: str = "en") -> None:
+async def extend_days(message: Message, state: FSMContext, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     data = await state.get_data()
     email = data["email"]
     await state.clear()
@@ -633,7 +637,7 @@ async def extend_days(message: Message, state: FSMContext, api: XUIClient, lang:
     if updated:
         inbound_remarks, is_online, last_online_str = await _fetch_render_extras(api, updated)
         await message.answer(
-            render_client(updated, lang, inbound_remarks=inbound_remarks, is_online=is_online, last_online_str=last_online_str),
+            render_client(updated, lang, tz=tz, inbound_remarks=inbound_remarks, is_online=is_online, last_online_str=last_online_str),
             reply_markup=client_card(updated, lang),
         )
     else:
@@ -665,7 +669,7 @@ async def _apply_extend(api: XUIClient, client: Client, days: int) -> None:
 # Set quota — quick-pick keyboard + text fallback
 # --------------------------------------------------------------------------- #
 @router.callback_query(ClientCB.filter(F.action == "set_quota"))
-async def cb_set_quota(query: CallbackQuery, callback_data: ClientCB, lang: str = "en") -> None:
+async def cb_set_quota(query: CallbackQuery, callback_data: ClientCB, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     await query.message.edit_text(
         t("quota_prompt", lang, email=esc(callback_data.email)),
         reply_markup=quick_quota(callback_data.email, lang=lang),
@@ -675,7 +679,7 @@ async def cb_set_quota(query: CallbackQuery, callback_data: ClientCB, lang: str 
 
 @router.callback_query(QuickPickCB.filter(F.field == "quota"))
 async def cb_qp_quota(
-    query: CallbackQuery, callback_data: QuickPickCB, state: FSMContext, api: XUIClient, lang: str = "en"
+    query: CallbackQuery, callback_data: QuickPickCB, state: FSMContext, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None
 ) -> None:
     email = callback_data.email
     if callback_data.value == -1:
@@ -701,11 +705,11 @@ async def cb_qp_quota(
         return
 
     await query.answer("✅")
-    await show_card(query, api, email, lang)
+    await show_card(query, api, email, lang, tz)
 
 
 @router.message(SetQuota.gb, F.text)
-async def set_quota_value(message: Message, state: FSMContext, api: XUIClient, lang: str = "en") -> None:
+async def set_quota_value(message: Message, state: FSMContext, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     data = await state.get_data()
     email = data["email"]
     await state.clear()
@@ -730,7 +734,7 @@ async def set_quota_value(message: Message, state: FSMContext, api: XUIClient, l
     if updated:
         inbound_remarks, is_online, last_online_str = await _fetch_render_extras(api, updated)
         await message.answer(
-            render_client(updated, lang, inbound_remarks=inbound_remarks, is_online=is_online, last_online_str=last_online_str),
+            render_client(updated, lang, tz=tz, inbound_remarks=inbound_remarks, is_online=is_online, last_online_str=last_online_str),
             reply_markup=client_card(updated, lang),
         )
     else:
@@ -741,7 +745,7 @@ async def set_quota_value(message: Message, state: FSMContext, api: XUIClient, l
 # Set expiry — quick-pick keyboard + text fallback
 # --------------------------------------------------------------------------- #
 @router.callback_query(ClientCB.filter(F.action == "set_expiry"))
-async def cb_set_expiry(query: CallbackQuery, callback_data: ClientCB, lang: str = "en") -> None:
+async def cb_set_expiry(query: CallbackQuery, callback_data: ClientCB, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     await query.message.edit_text(
         t("expiry_prompt", lang, email=esc(callback_data.email)),
         reply_markup=quick_days(callback_data.email, field="expiry", lang=lang),
@@ -751,7 +755,7 @@ async def cb_set_expiry(query: CallbackQuery, callback_data: ClientCB, lang: str
 
 @router.callback_query(QuickPickCB.filter(F.field == "expiry"))
 async def cb_qp_expiry(
-    query: CallbackQuery, callback_data: QuickPickCB, state: FSMContext, api: XUIClient, lang: str = "en"
+    query: CallbackQuery, callback_data: QuickPickCB, state: FSMContext, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None
 ) -> None:
     email = callback_data.email
     if callback_data.value == -1:
@@ -778,11 +782,11 @@ async def cb_qp_expiry(
         return
 
     await query.answer("✅")
-    await show_card(query, api, email, lang)
+    await show_card(query, api, email, lang, tz)
 
 
 @router.message(SetExpiry.days, F.text)
-async def set_expiry_value(message: Message, state: FSMContext, api: XUIClient, lang: str = "en") -> None:
+async def set_expiry_value(message: Message, state: FSMContext, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     data = await state.get_data()
     email = data["email"]
     await state.clear()
@@ -812,7 +816,7 @@ async def set_expiry_value(message: Message, state: FSMContext, api: XUIClient, 
     if updated:
         inbound_remarks, is_online, last_online_str = await _fetch_render_extras(api, updated)
         await message.answer(
-            render_client(updated, lang, inbound_remarks=inbound_remarks, is_online=is_online, last_online_str=last_online_str),
+            render_client(updated, lang, tz=tz, inbound_remarks=inbound_remarks, is_online=is_online, last_online_str=last_online_str),
             reply_markup=client_card(updated, lang),
         )
     else:
@@ -823,7 +827,7 @@ async def set_expiry_value(message: Message, state: FSMContext, api: XUIClient, 
 # Set IP limit — quick-pick keyboard + text fallback
 # --------------------------------------------------------------------------- #
 @router.callback_query(ClientCB.filter(F.action == "ip_limit"))
-async def cb_ip_limit(query: CallbackQuery, callback_data: ClientCB, lang: str = "en") -> None:
+async def cb_ip_limit(query: CallbackQuery, callback_data: ClientCB, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     await query.message.edit_text(
         t("iplimit_prompt", lang, email=esc(callback_data.email)),
         reply_markup=quick_iplimit(callback_data.email, lang=lang),
@@ -833,7 +837,7 @@ async def cb_ip_limit(query: CallbackQuery, callback_data: ClientCB, lang: str =
 
 @router.callback_query(QuickPickCB.filter(F.field == "iplimit"))
 async def cb_qp_iplimit(
-    query: CallbackQuery, callback_data: QuickPickCB, state: FSMContext, api: XUIClient, lang: str = "en"
+    query: CallbackQuery, callback_data: QuickPickCB, state: FSMContext, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None
 ) -> None:
     email = callback_data.email
     if callback_data.value == -1:
@@ -857,11 +861,11 @@ async def cb_qp_iplimit(
         return
 
     await query.answer("✅")
-    await show_card(query, api, email, lang)
+    await show_card(query, api, email, lang, tz)
 
 
 @router.message(SetIpLimit.count, F.text)
-async def set_ip_limit_value(message: Message, state: FSMContext, api: XUIClient, lang: str = "en") -> None:
+async def set_ip_limit_value(message: Message, state: FSMContext, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     data = await state.get_data()
     email = data["email"]
     await state.clear()
@@ -887,7 +891,7 @@ async def set_ip_limit_value(message: Message, state: FSMContext, api: XUIClient
     if updated:
         inbound_remarks, is_online, last_online_str = await _fetch_render_extras(api, updated)
         await message.answer(
-            render_client(updated, lang, inbound_remarks=inbound_remarks, is_online=is_online, last_online_str=last_online_str),
+            render_client(updated, lang, tz=tz, inbound_remarks=inbound_remarks, is_online=is_online, last_online_str=last_online_str),
             reply_markup=client_card(updated, lang),
         )
     else:
@@ -899,7 +903,7 @@ async def set_ip_limit_value(message: Message, state: FSMContext, api: XUIClient
 # --------------------------------------------------------------------------- #
 @router.callback_query(MenuCB.filter(F.action == "create"))
 async def cb_create(
-    query: CallbackQuery, state: FSMContext, api: XUIClient, settings: Settings, lang: str = "en"
+    query: CallbackQuery, state: FSMContext, api: XUIClient, settings: Settings, lang: str = "en", tz: ZoneInfo | None = None
 ) -> None:
     await query.answer(t("loading_inbounds", lang))
     try:
@@ -944,7 +948,7 @@ def _opts_from_state(data: dict) -> list:
 
 @router.callback_query(CreateClient.inbounds, InbPickCB.filter(F.action == "toggle"))
 async def create_toggle_inbound(
-    query: CallbackQuery, callback_data: InbPickCB, state: FSMContext, lang: str = "en"
+    query: CallbackQuery, callback_data: InbPickCB, state: FSMContext, lang: str = "en", tz: ZoneInfo | None = None
 ) -> None:
     data = await state.get_data()
     selected = set(data.get("selected", []))
@@ -960,7 +964,7 @@ async def create_toggle_inbound(
 
 
 @router.callback_query(CreateClient.inbounds, InbPickCB.filter(F.action == "done"))
-async def create_inbounds_done(query: CallbackQuery, state: FSMContext, lang: str = "en") -> None:
+async def create_inbounds_done(query: CallbackQuery, state: FSMContext, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     data = await state.get_data()
     if not data.get("selected"):
         await query.answer(t("create_pick_at_least_one", lang), show_alert=True)
@@ -971,7 +975,7 @@ async def create_inbounds_done(query: CallbackQuery, state: FSMContext, lang: st
 
 
 @router.message(CreateClient.email, F.text)
-async def create_email(message: Message, state: FSMContext, lang: str = "en") -> None:
+async def create_email(message: Message, state: FSMContext, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     email = message.text.strip()
     if " " in email or not email:
         await message.answer(t("create_email_invalid", lang))
@@ -986,7 +990,7 @@ async def create_email(message: Message, state: FSMContext, lang: str = "en") ->
 
 @router.callback_query(CreateClient.quota, QuickPickCB.filter(F.field == "wiz_quota"))
 async def cb_wiz_quota(
-    query: CallbackQuery, callback_data: QuickPickCB, state: FSMContext, settings: Settings, lang: str = "en"
+    query: CallbackQuery, callback_data: QuickPickCB, state: FSMContext, settings: Settings, lang: str = "en", tz: ZoneInfo | None = None
 ) -> None:
     if callback_data.value == -1:
         await query.message.edit_text(
@@ -1005,7 +1009,7 @@ async def cb_wiz_quota(
 
 
 @router.message(CreateClient.quota, F.text)
-async def create_quota(message: Message, state: FSMContext, settings: Settings, lang: str = "en") -> None:
+async def create_quota(message: Message, state: FSMContext, settings: Settings, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     raw = message.text.strip()
     try:
         quota = float(raw) if raw else settings.default_quota_gb
@@ -1022,7 +1026,7 @@ async def create_quota(message: Message, state: FSMContext, settings: Settings, 
 
 @router.callback_query(CreateClient.days, QuickPickCB.filter(F.field == "wiz_days"))
 async def cb_wiz_days(
-    query: CallbackQuery, callback_data: QuickPickCB, state: FSMContext, settings: Settings, lang: str = "en"
+    query: CallbackQuery, callback_data: QuickPickCB, state: FSMContext, settings: Settings, lang: str = "en", tz: ZoneInfo | None = None
 ) -> None:
     if callback_data.value == -1:
         await query.message.edit_text(
@@ -1031,12 +1035,12 @@ async def cb_wiz_days(
         )
         await query.answer()
         return
-    await _finish_wizard(query, state, callback_data.value, lang)
+    await _finish_wizard(query, state, callback_data.value, lang, tz)
     await query.answer()
 
 
 @router.message(CreateClient.days, F.text)
-async def create_days(message: Message, state: FSMContext, settings: Settings, lang: str = "en") -> None:
+async def create_days(message: Message, state: FSMContext, settings: Settings, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     raw = message.text.strip()
     try:
         days = int(raw) if raw else settings.default_days
@@ -1055,7 +1059,7 @@ async def create_days(message: Message, state: FSMContext, settings: Settings, l
     )
 
 
-async def _finish_wizard(query: CallbackQuery, state: FSMContext, days: int, lang: str = "en") -> None:
+async def _finish_wizard(query: CallbackQuery, state: FSMContext, days: int, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     data = await state.get_data()
     await state.update_data(days=days)
     await state.set_state(CreateClient.confirm)
@@ -1072,7 +1076,7 @@ async def _finish_wizard(query: CallbackQuery, state: FSMContext, days: int, lan
 @router.callback_query(
     CreateClient.confirm, ConfirmCB.filter((F.action == "yes") & (F.scope == "create"))
 )
-async def create_confirm(query: CallbackQuery, state: FSMContext, api: XUIClient, lang: str = "en") -> None:
+async def create_confirm(query: CallbackQuery, state: FSMContext, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     data = await state.get_data()
     await state.clear()
     builder = ClientCreate(
@@ -1089,9 +1093,9 @@ async def create_confirm(query: CallbackQuery, state: FSMContext, api: XUIClient
     await query.answer(t("created_ok", lang))
     client = await api.get_client(data["email"])
     if client:
-        inbound_remarks, is_online, last_online_str = await _fetch_render_extras(api, client)
+        inbound_remarks, is_online, last_online_str = await _fetch_render_extras(api, client, tz)
         await query.message.edit_text(
-            render_client(client, lang, inbound_remarks=inbound_remarks, is_online=is_online, last_online_str=last_online_str),
+            render_client(client, lang, tz=tz, inbound_remarks=inbound_remarks, is_online=is_online, last_online_str=last_online_str),
             reply_markup=client_card(client, lang),
         )
     else:

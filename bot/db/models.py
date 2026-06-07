@@ -38,6 +38,7 @@ class User(Model):
     # Linked panel client email (clients only).
     panel_email = fields.CharField(max_length=255, null=True, index=True)
     language = fields.CharField(max_length=8, default="en")
+    timezone = fields.CharField(max_length=64, default="UTC")
     is_active = fields.BooleanField(default=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import time
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from aiogram import F, Router
 from aiogram.types import CallbackQuery
@@ -12,7 +13,7 @@ from bot.i18n import t
 from bot.keyboards.admin import back_home, back_home_refresh, confirm_reset_all, online_clients_list
 from bot.keyboards.callbacks import ConfirmCB, MenuCB
 from bot.middlewares.filters import IsAdmin
-from bot.utils.formatting import LOCAL_TZ, compact_bytes, esc, fmt_expiry, fmt_expiry_card, fmt_quota, fmt_uptime_days, human_bytes
+from bot.utils.formatting import compact_bytes, esc, fmt_expiry, fmt_expiry_card, fmt_quota, fmt_uptime_days, human_bytes
 
 router = Router(name="admin-menu")
 router.callback_query.filter(IsAdmin())
@@ -22,7 +23,7 @@ _EXPIRY_WARN_DAYS   = 7
 
 
 @router.callback_query(MenuCB.filter(F.action == "server"))
-async def cb_server(query: CallbackQuery, api: XUIClient, lang: str = "en") -> None:
+async def cb_server(query: CallbackQuery, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     await query.answer(t("loading", lang))
     try:
         st = await api.server_status()
@@ -71,7 +72,7 @@ async def cb_server(query: CallbackQuery, api: XUIClient, lang: str = "en") -> N
     xray_total = xray_up + xray_down
     ram_used = compact_bytes(mem.get("current", 0))
     ram_total = compact_bytes(mem.get("total", 0))
-    refresh_ts = datetime.now(tz=LOCAL_TZ).strftime("%Y-%m-%d %H:%M:%S")
+    refresh_ts = datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S")
 
     lines = [
         t("server_xray_version", lang, v=xray_version),
@@ -116,7 +117,7 @@ async def cb_online(query: CallbackQuery, api: XUIClient, lang: str = "en") -> N
 
 
 @router.callback_query(MenuCB.filter(F.action == "inbounds"))
-async def cb_inbounds(query: CallbackQuery, api: XUIClient, lang: str = "en") -> None:
+async def cb_inbounds(query: CallbackQuery, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     await query.answer(t("loading", lang))
     try:
         inbounds = await api.list_inbounds()
@@ -127,10 +128,10 @@ async def cb_inbounds(query: CallbackQuery, api: XUIClient, lang: str = "en") ->
         await query.message.edit_text(t("inbounds_empty", lang), reply_markup=back_home(lang))
         return
 
-    refresh_ts = datetime.now(tz=LOCAL_TZ).strftime("%Y-%m-%d %H:%M:%S")
+    refresh_ts = datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S")
     sections: list[str] = []
     for ib in inbounds:
-        expiry = fmt_expiry_card(ib.expiry_time, ib.reset)
+        expiry = fmt_expiry_card(ib.expiry_time, ib.reset, tz)
         section = "\n".join([
             t("inbound_name", lang, v=esc(ib.remark or ib.protocol)),
             t("inbound_port", lang, v=ib.port),

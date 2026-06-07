@@ -11,6 +11,7 @@ from aiogram.types import CallbackQuery, Message, TelegramObject, User as TgUser
 
 from bot.config import Settings
 from bot.db.models import Role, User
+from bot.utils.formatting import get_tz
 
 
 class AuthMiddleware(BaseMiddleware):
@@ -52,4 +53,5 @@ class AuthMiddleware(BaseMiddleware):
 
         data["user"] = user
         data["lang"] = user.language or "en"
+        data["tz"] = get_tz(user.timezone or "UTC")
         return await handler(event, data)

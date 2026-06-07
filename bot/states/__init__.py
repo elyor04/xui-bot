@@ -34,3 +34,7 @@ class SetIpLimit(StatesGroup):
 
 class SetTgId(StatesGroup):
     waiting = State()
+
+
+class SelectTimezone(StatesGroup):
+    waiting = State()

@@ -16,9 +16,12 @@ Admin / client Telegram bot for a **3x-ui** panel, built on **aiogram 3**.
 * **Multilingual** — the entire UI is available in English, Uzbek, Russian,
   Chinese, and Persian. Each user picks their language once; it is remembered
   across sessions.
+* **Per-user timezone** — every user sets their own timezone via `/timezone` +
+  inline search; all date/time displays (expiry, last-seen, refresh timestamps)
+  are shown in that timezone.
 
 The panel stays the single source of truth for VPN accounts. The local
-database only records who-is-who (Telegram ↔ role ↔ panel email ↔ language).
+database only records who-is-who (Telegram ↔ role ↔ panel email ↔ language ↔ timezone).
 
 ## Architecture
 
@@ -30,32 +33,33 @@ bot/
 │   ├── client.py        #   XUIClient: Bearer-first auth, cookie fallback, envelope unwrap
 │   ├── models.py        #   pydantic models (Inbound, Client, ClientCreate, ServerStatus…)
 │   └── exceptions.py
-├── db/                  # tortoise-orm (User: tg_id, role, panel_email, language)
+├── db/                  # tortoise-orm (User: tg_id, role, panel_email, language, timezone)
 │   └── fsm.py           #   tortoise-backed FSM storage for aiogram
 ├── i18n/
 │   └── __init__.py      #   all UI strings in 5 languages + t(key, lang, **kwargs)
 ├── handlers/
-│   ├── common.py        #   /start /help /cancel, home menu, mode switching,
-│   │                    #   language selection (🌐 Language button + LangCB)
+│   ├── common.py        #   /start /help /cancel /timezone, home menu, mode switching,
+│   │                    #   language selection, unified inline query handler
 │   ├── admin/
 │   │   ├── menu.py      #   server status, online, inbounds, backup, cleanup,
 │   │   │                #   depleting-soon, sorted traffic report, restart Xray
 │   │   └── clients.py   #   list/view/create/extend/delete/reset/links/QR/IPs/toggle/
-│   │                    #   IP limit/TG ID  (/find <email> command)
+│   │                    #   IP limit/TG ID  (/find <email> + inline search)
 │   └── client/
 │       └── account.py   #   link, my account, my configs + QR codes, unlink
 ├── keyboards/           # inline keyboards + typed CallbackData factories
 │                        #   (all keyboard functions accept lang= parameter)
 ├── middlewares/
-│   ├── auth.py          #   role resolution + admin promotion + lang injection
+│   ├── auth.py          #   role resolution, admin promotion, lang + tz injection
 │   └── filters.py       #   IsAdmin / IsClient aiogram filters
 ├── states/              # FSM groups (CreateClient, FindClient, ExtendClient,
-│                        #   SetQuota, SetIpLimit, SetTgId, SetExpiry)
+│                        #   SetQuota, SetIpLimit, SetTgId, SetExpiry, SelectTimezone)
 ├── tasks/
 │   └── report.py        #   periodic report: server stats + depleting-soon list
 │                        #   (sent in each admin's own chosen language)
 └── utils/
     └── formatting.py    #   byte / date / progress bar formatting helpers
+                         #   get_tz() helper; all date functions accept optional tz=
 ```
 
 ## Quick start
@@ -130,6 +134,26 @@ main menu, choose from the list, and the preference is saved immediately.
 [bot/i18n/__init__.py](bot/i18n/__init__.py) and add it to the `LANGS` dict
 at the top of the same file. No other files need to change.
 
+## Timezone
+
+Every user has their own timezone (default: `UTC`). All date/time values shown
+by the bot — expiry dates, last-seen timestamps, refresh times — are displayed
+in the user's configured timezone.
+
+**Setting a timezone:**
+
+1. Send `/timezone` — the bot shows your current timezone.
+2. Tap **🔍 Search timezone** — this opens an inline query in the same chat.
+3. Type part of a timezone name (e.g. `Tashkent`, `New_York`, `UTC`).
+4. Pick a result — the bot saves it and confirms.
+
+Timezones are standard IANA names (e.g. `Asia/Tashkent`, `America/New_York`,
+`Europe/Moscow`). The `tzdata` package is bundled so timezone data is available
+on all platforms.
+
+> **BotFather setup:** inline mode must be enabled for your bot. Send
+> `/setinline` to @BotFather and set a placeholder text (e.g. `Search…`).
+
 ## Features
 
 ### Admin
@@ -140,7 +164,8 @@ at the top of the same file. No other files need to change.
 | Online clients | Main menu → Online |
 | Inbounds overview | Main menu → Inbounds |
 | Clients — paginated list with inbound filter | Main menu → Clients |
-| Jump to a specific client | `/find <email>` |
+| Jump to a specific client (text search) | `/find <email>` |
+| Search clients via inline query | Find prompt → 🔍 Search inline |
 | Create client (guided wizard) | Clients list → ➕ Add |
 | Edit client — extend, set quota, IP limit, TG ID | Client card buttons |
 | Reset individual / all traffic | Client card → Reset Traffic |
@@ -155,6 +180,7 @@ at the top of the same file. No other files need to change.
 | Restart Xray service | Main menu → Restart Xray |
 | Periodic scheduled report | Automatic, every `REPORT_INTERVAL_HOURS` |
 | Change language | Main menu → 🌐 Language |
+| Set timezone | `/timezone` |
 
 ### Client (end-user)
 
@@ -167,6 +193,18 @@ at the top of the same file. No other files need to change.
 | QR codes for each config | My Configs → QR |
 | Unlink account | My Account → Unlink |
 | Change language | Main menu → 🌐 Language |
+| Set timezone | `/timezone` |
+
+### Inline query
+
+The bot handles inline queries (`@botname query`) for two purposes:
+
+| Context | What you get |
+|---|---|
+| Admin in **Find Client** flow | Matching clients with traffic and expiry info |
+| Anyone running `/timezone` | IANA timezone list with UTC offset and current local time |
+
+The active FSM state determines which results are shown — no prefix needed.
 
 ## QR code support
 
@@ -182,7 +220,8 @@ Wrapped from the panel's `/panel/api/*` endpoints (all replies follow the
 * **Inbounds** — `list`, `options`, `get/:id`, `setEnable/:id`
 * **Clients** — `list`, `get/:email`, `add`, `update/:email`, `del/:email`,
   `resetTraffic/:email`, `resetAllTraffics`, `bulkAdjust`, `links/:email`,
-  `subLinks/:subId`, `ips/:email`, `clearIps/:email`, `onlines`, `delDepleted`
+  `subLinks/:subId`, `ips/:email`, `clearIps/:email`, `onlines`, `delDepleted`,
+  `list/paged` (search)
 * **Server** — `status`, `getNewUUID`, `restartXrayService`, `backuptotgbot`
 
 > The client payload shape (`totalGB` in **bytes**, `expiryTime` as **unix ms**,
@@ -215,3 +254,22 @@ async def cb_example(query: CallbackQuery, lang: str = "en") -> None:
 Add the key to `_S` in [bot/i18n/__init__.py](bot/i18n/__init__.py) with a
 translation for every language in `LANGS`. Keyboard functions accept a `lang`
 parameter and call `t()` for their button labels.
+
+### Using the injected timezone
+
+`AuthMiddleware` resolves the user's stored timezone and injects a `ZoneInfo`
+object as `tz` into every handler. Pass it through to any formatting helper:
+
+```python
+from zoneinfo import ZoneInfo
+from bot.utils.formatting import fmt_expiry_card
+from datetime import datetime
+
+async def cb_example(query: CallbackQuery, lang: str = "en", tz: ZoneInfo | None = None) -> None:
+    expiry_str = fmt_expiry_card(client.expiry_time, tz=tz)
+    refresh_ts = datetime.now(tz=tz).strftime("%Y-%m-%d %H:%M:%S")
+```
+
+All formatting functions (`fmt_expiry`, `fmt_expiry_card`, `extract_last_online`,
+`fmt_ips`) accept an optional `tz=` keyword argument and fall back to the
+server's local timezone when it is omitted.

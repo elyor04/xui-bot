@@ -71,6 +71,40 @@ _S: dict[str, dict[str, str]] = {
         "zh": "✅ 语言已设置为中文。",
         "fa": "✅ زبان به فارسی تغییر یافت.",
     },
+    "btn_search_inline": {
+        "en": "🔍 Search inline", "uz": "🔍 Inline qidirish", "ru": "🔍 Поиск inline",
+        "zh": "🔍 内联搜索", "fa": "🔍 جستجوی inline",
+    },
+    # ── Timezone selection ───────────────────────────────────────────────────
+    "btn_timezone": {
+        "en": "🕐 Timezone", "uz": "🕐 Vaqt zonasi", "ru": "🕐 Часовой пояс",
+        "zh": "🕐 时区", "fa": "🕐 منطقه زمانی",
+    },
+    "tz_title": {
+        "en": "🕐 <b>Timezone settings</b>\n\nCurrent timezone: <code>{tz}</code>\n\nUse the button below to search and select a timezone.",
+        "uz": "🕐 <b>Vaqt zonasi</b>\n\nJoriy zona: <code>{tz}</code>\n\nVaqt zonasini tanlash uchun quyidagi tugmani bosing.",
+        "ru": "🕐 <b>Часовой пояс</b>\n\nТекущий пояс: <code>{tz}</code>\n\nНажмите кнопку ниже, чтобы найти и выбрать часовой пояс.",
+        "zh": "🕐 <b>时区设置</b>\n\n当前时区：<code>{tz}</code>\n\n点击下方按钮搜索并选择时区。",
+        "fa": "🕐 <b>تنظیمات منطقه زمانی</b>\n\nمنطقه فعلی: <code>{tz}</code>\n\nبرای جستجو و انتخاب منطقه زمانی دکمه زیر را بزنید.",
+    },
+    "tz_search_btn": {
+        "en": "🔍 Search timezone", "uz": "🔍 Vaqt zonasini qidirish", "ru": "🔍 Найти часовой пояс",
+        "zh": "🔍 搜索时区", "fa": "🔍 جستجوی منطقه زمانی",
+    },
+    "tz_set": {
+        "en": "✅ Timezone set to <b>{tz}</b>",
+        "uz": "✅ Vaqt zonasi <b>{tz}</b> ga o'zgartirildi",
+        "ru": "✅ Часовой пояс установлен: <b>{tz}</b>",
+        "zh": "✅ 时区已设置为 <b>{tz}</b>",
+        "fa": "✅ منطقه زمانی به <b>{tz}</b> تغییر یافت",
+    },
+    "tz_invalid": {
+        "en": "❌ Unknown timezone. Use the search button to pick a valid one.",
+        "uz": "❌ Noma'lum vaqt zonasi. Qidirish tugmasidan foydalaning.",
+        "ru": "❌ Неизвестный часовой пояс. Используйте кнопку поиска.",
+        "zh": "❌ 未知时区，请使用搜索按钮选择有效时区。",
+        "fa": "❌ منطقه زمانی نامعتبر. لطفاً از دکمه جستجو استفاده کنید.",
+    },
     # ── Home ────────────────────────────────────────────────────────────────
     "home_admin": {
         "en": "👋 <b>Admin panel</b>\nSigned in as <code>{name}</code>.\n\nManage clients, inbounds and the server below.",
