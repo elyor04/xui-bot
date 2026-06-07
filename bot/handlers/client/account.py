@@ -1,7 +1,6 @@
 """Client (end-user) side: link to a panel account, view usage, get configs, QR codes."""
 from __future__ import annotations
 
-import io
 from datetime import datetime
 
 from aiogram import F, Router
@@ -13,30 +12,11 @@ from bot.db.models import User
 from bot.keyboards.callbacks import MenuCB, PickClientCB
 from bot.keyboards.client import account_kb, client_home, client_menu, pick_client
 from bot.middlewares.filters import IsClient
-from bot.utils.formatting import LOCAL_TZ, compact_bytes, esc, fmt_expiry_card, fmt_quota_card
+from bot.utils.formatting import LOCAL_TZ, compact_bytes, esc, fmt_expiry_card, fmt_quota_card, make_qr_png
 
 router = Router(name="client-account")
 router.message.filter(IsClient())
 router.callback_query.filter(IsClient())
-
-# ---------------------------------------------------------------------------
-# Optional QR support — degrades gracefully when qrcode/Pillow not installed
-# ---------------------------------------------------------------------------
-try:
-    import qrcode  # type: ignore
-
-    def _make_qr_png(data: str) -> bytes:
-        img = qrcode.make(data)
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        return buf.getvalue()
-
-    _HAS_QR = True
-except ImportError:
-    _HAS_QR = False
-
-    def _make_qr_png(data: str) -> bytes:  # type: ignore[misc]
-        return b""
 
 
 def render_account(client, inbound_remarks: list[str] | None = None) -> str:
@@ -191,13 +171,6 @@ async def cb_myqr(query: CallbackQuery, user: User, api: XUIClient, settings: Se
         await query.answer("Link your account first.", show_alert=True)
         return
 
-    if not _HAS_QR:
-        await query.answer(
-            "QR generation unavailable. Install qrcode[pil] and restart the bot.",
-            show_alert=True,
-        )
-        return
-
     await query.answer("Generating QR…")
 
     try:
@@ -220,7 +193,7 @@ async def cb_myqr(query: CallbackQuery, user: User, api: XUIClient, settings: Se
     # Sub URL QR
     if client.sub_id and settings.sub_base_url:
         sub_url = settings.sub_base_url.rstrip("/") + "/" + client.sub_id
-        png = _make_qr_png(sub_url)
+        png = make_qr_png(sub_url)
         file = BufferedInputFile(png, filename="subscription_qr.png")
         await query.message.answer_document(file, caption="📷 Your subscription QR code")
         sent_any = True
@@ -229,7 +202,7 @@ async def cb_myqr(query: CallbackQuery, user: User, api: XUIClient, settings: Se
     try:
         links = await api.client_links(user.panel_email)
         for i, link in enumerate(links[:5], 1):
-            png = _make_qr_png(link)
+            png = make_qr_png(link)
             file = BufferedInputFile(png, filename=f"config_{i}_qr.png")
             await query.message.answer_document(file, caption=f"📷 Config #{i}")
             sent_any = True

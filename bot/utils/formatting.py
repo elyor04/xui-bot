@@ -2,9 +2,19 @@
 from __future__ import annotations
 
 import html
+import io
 import json
 import time
 from datetime import datetime, timezone
+
+import qrcode  # type: ignore
+
+
+def make_qr_png(data: str) -> bytes:
+    img = qrcode.make(data)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
 
 GB = 1024 ** 3
 

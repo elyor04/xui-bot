@@ -1,7 +1,6 @@
 """Admin client management: list, view, create, extend, delete, reset, links, QR, quota."""
 from __future__ import annotations
 
-import io
 import math
 import time
 from datetime import datetime
@@ -56,6 +55,7 @@ from bot.utils.formatting import (
     fmt_expiry_card,
     fmt_ips,
     fmt_quota_card,
+    make_qr_png,
 )
 
 router = Router(name="admin-clients")
@@ -63,25 +63,6 @@ router.message.filter(IsAdmin())
 router.callback_query.filter(IsAdmin())
 
 PAGE_SIZE = 8
-
-# ---------------------------------------------------------------------------
-# Optional QR support — degrades gracefully when qrcode/Pillow not installed
-# ---------------------------------------------------------------------------
-try:
-    import qrcode  # type: ignore
-
-    def _make_qr_png(data: str) -> bytes:
-        img = qrcode.make(data)
-        buf = io.BytesIO()
-        img.save(buf, format="PNG")
-        return buf.getvalue()
-
-    _HAS_QR = True
-except ImportError:
-    _HAS_QR = False
-
-    def _make_qr_png(data: str) -> bytes:  # type: ignore[misc]
-        return b""
 
 
 # --------------------------------------------------------------------------- #
@@ -435,19 +416,11 @@ async def cb_qr(
         )
         return
 
-    if not _HAS_QR:
-        await query.message.edit_text(
-            "📷 QR generation is unavailable.\n"
-            "Install <code>qrcode[pil]</code> and restart the bot.",
-            reply_markup=back_home(),
-        )
-        return
-
     sent_any = False
 
     if client.sub_id and settings.sub_base_url:
         sub_url = settings.sub_base_url.rstrip("/") + "/" + client.sub_id
-        png = _make_qr_png(sub_url)
+        png = make_qr_png(sub_url)
         file = BufferedInputFile(png, filename=f"{callback_data.email}_sub.png")
         await query.message.answer_document(
             file, caption=f"📷 Sub URL QR · <code>{esc(callback_data.email)}</code>"
@@ -457,7 +430,7 @@ async def cb_qr(
     try:
         links = await api.client_links(callback_data.email)
         for i, link in enumerate(links[:5], 1):
-            png = _make_qr_png(link)
+            png = make_qr_png(link)
             file = BufferedInputFile(png, filename=f"{callback_data.email}_link{i}.png")
             await query.message.answer_document(
                 file, caption=f"📷 Config #{i} · <code>{esc(callback_data.email)}</code>"
