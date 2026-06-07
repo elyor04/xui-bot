@@ -7,6 +7,8 @@ from aiogram import Bot
 
 from bot.api import XUIClient, XUIError
 from bot.config import Settings
+from bot.db.models import User
+from bot.i18n import DEFAULT_LANG, t
 from bot.utils.formatting import fmt_uptime, human_bytes
 
 logger = logging.getLogger("xui_bot.tasks.report")
@@ -15,15 +17,7 @@ _DEPLETE_THRESHOLD_DAYS = 7
 _DEPLETE_TRAFFIC_RATIO  = 0.85
 
 
-async def send_report(bot: Bot, api: XUIClient, settings: Settings) -> None:
-    try:
-        status  = await api.server_status()
-        clients = await api.list_clients()
-        online  = await api.online_clients()
-    except XUIError as exc:
-        logger.warning("Report fetch error: %s", exc)
-        return
-
+def _build_report(status, clients, online, lang: str) -> str:
     now_ms = int(time.time() * 1000)
     threshold_ms = now_ms + _DEPLETE_THRESHOLD_DAYS * 86400 * 1000
 
@@ -49,26 +43,40 @@ async def send_report(bot: Bot, api: XUIClient, settings: Settings) -> None:
         return human_bytes(cur)
 
     parts: list[str] = [
-        "📊 <b>Periodic Report</b>",
+        t("report_title", lang),
         "",
-        f"🖥 CPU: {status.cpu:.1f}%",
-        f"💾 RAM: {_pct(mem_d)}",
-        f"💿 Disk: {_pct(disk_d)}",
-        f"⏱ Uptime: {fmt_uptime(status.uptime)}  |  Xray: {xray_state}",
-        f"👥 Total: {len(clients)}  |  🟢 Online: {len(online)}",
+        t("report_cpu", lang, v=f"{status.cpu:.1f}"),
+        t("report_ram", lang, v=_pct(mem_d)),
+        t("report_disk", lang, v=_pct(disk_d)),
+        t("report_uptime", lang, uptime=fmt_uptime(status.uptime), xray=xray_state),
+        t("report_stats", lang, total=len(clients), online=len(online)),
     ]
 
     if depleting:
         parts.append("")
-        parts.append(f"⚠️ <b>Depleting soon ({len(depleting)})</b>")
+        parts.append(t("report_depleting", lang, count=len(depleting)))
         for email in depleting[:20]:
             parts.append(f"  • {email}")
         if len(depleting) > 20:
-            parts.append(f"  …and {len(depleting) - 20} more")
+            parts.append(t("report_and_more", lang, count=len(depleting) - 20))
 
-    text = "\n".join(parts)
+    return "\n".join(parts)
+
+
+async def send_report(bot: Bot, api: XUIClient, settings: Settings) -> None:
+    try:
+        status  = await api.server_status()
+        clients = await api.list_clients()
+        online  = await api.online_clients()
+    except XUIError as exc:
+        logger.warning("Report fetch error: %s", exc)
+        return
+
     for uid in settings.admin_ids:
         try:
+            db_user = await User.get_or_none(tg_id=uid)
+            lang = db_user.language if db_user else DEFAULT_LANG
+            text = _build_report(status, clients, online, lang)
             await bot.send_message(uid, text)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Could not send report to %s: %s", uid, exc)

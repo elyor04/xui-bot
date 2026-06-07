@@ -50,3 +50,7 @@ class QuickPickCB(CallbackData, prefix="qp"):
     field: str
     value: int
     email: str = ""
+
+
+class LangCB(CallbackData, prefix="lang"):
+    code: str  # "en" | "uz" | "ru" | "zh" | "fa"

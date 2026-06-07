@@ -37,6 +37,7 @@ class User(Model):
     active_role = fields.CharEnumField(Role, null=True, max_length=16)
     # Linked panel client email (clients only).
     panel_email = fields.CharField(max_length=255, null=True, index=True)
+    language = fields.CharField(max_length=8, default="en")
     is_active = fields.BooleanField(default=True)
     created_at = fields.DatetimeField(auto_now_add=True)
     updated_at = fields.DatetimeField(auto_now=True)

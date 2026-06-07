@@ -1,4 +1,4 @@
-"""Shared handlers: /start, /help, /cancel and the home-menu dispatcher."""
+"""Shared handlers: /start, /help, /cancel, home-menu dispatcher, language selection."""
 from __future__ import annotations
 
 import logging
@@ -13,44 +13,34 @@ logger = logging.getLogger(__name__)
 
 from bot.api import XUIClient
 from bot.db.models import Role, User
+from bot.i18n import t
 from bot.keyboards.admin import admin_menu
-from bot.keyboards.callbacks import MenuCB, PickModeCB
-from bot.keyboards.client import client_menu, mode_picker, pick_client
+from bot.keyboards.callbacks import LangCB, MenuCB, PickModeCB
+from bot.keyboards.client import client_menu, language_picker, mode_picker, pick_client
 from bot.utils.formatting import esc
 
 router = Router(name="common")
 
 
-def home_text(user: User) -> str:
+def home_text(user: User, lang: str = "en") -> str:
     if user.effective_role == Role.ADMIN:
-        return (
-            f"👋 <b>Admin panel</b>\n"
-            f"Signed in as <code>{esc(user.full_name)}</code>.\n\n"
-            f"Manage clients, inbounds and the server below."
-        )
+        return t("home_admin", lang, name=esc(user.full_name))
     if user.is_linked:
-        return (
-            f"👋 Welcome back, <b>{esc(user.full_name)}</b>.\n"
-            f"Your account is linked to <code>{esc(user.panel_email)}</code>."
-        )
-    return (
-        f"👋 Welcome, <b>{esc(user.full_name)}</b>.\n\n"
-        f"Tap <b>Link my account</b> to connect."
-    )
+        return t("home_client_linked", lang, name=esc(user.full_name), email=esc(user.panel_email))
+    return t("home_client_unlinked", lang, name=esc(user.full_name))
 
 
-def home_markup(user: User):
+def home_markup(user: User, lang: str = "en"):
     if user.effective_role == Role.ADMIN:
-        return admin_menu(switch=user.is_admin)
-    return client_menu(user.is_linked, switch=user.is_admin)
+        return admin_menu(switch=user.is_admin, lang=lang)
+    return client_menu(user.is_linked, switch=user.is_admin, lang=lang)
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message, user: User, state: FSMContext, api: XUIClient) -> None:
+async def cmd_start(message: Message, user: User, state: FSMContext, api: XUIClient, lang: str = "en") -> None:
     await state.clear()
 
     if user.role == Role.ADMIN:
-        # Show mode picker when admin hasn't picked a mode yet and has client accounts.
         if user.active_role is None:
             client_emails: list[str] = (
                 [user.panel_email] if user.panel_email
@@ -58,12 +48,11 @@ async def cmd_start(message: Message, user: User, state: FSMContext, api: XUICli
             )
             if client_emails:
                 await message.answer(
-                    "👋 How would you like to use the bot?",
-                    reply_markup=mode_picker(client_emails),
+                    t("mode_picker_prompt", lang),
+                    reply_markup=mode_picker(client_emails, lang),
                 )
                 return
     else:
-        # Regular client: auto-link if exactly one panel account matches their TG ID.
         if not user.is_linked:
             matches = await _fetch_matches(api, user.tg_id)
             if len(matches) == 1:
@@ -71,11 +60,11 @@ async def cmd_start(message: Message, user: User, state: FSMContext, api: XUICli
                 await user.save()
             elif len(matches) > 1:
                 await message.answer(
-                    "👤 Which account is yours?", reply_markup=pick_client(matches)
+                    t("pick_account", lang), reply_markup=pick_client(matches, lang)
                 )
                 return
 
-    await message.answer(home_text(user), reply_markup=home_markup(user))
+    await message.answer(home_text(user, lang), reply_markup=home_markup(user, lang))
 
 
 async def _fetch_matches(api: XUIClient, tg_id: int):
@@ -86,75 +75,88 @@ async def _fetch_matches(api: XUIClient, tg_id: int):
 
 
 # ---------------------------------------------------------------------------
-# Mode switching (admin ↔ client) — no role filter, works from any context
+# Mode switching (admin ↔ client)
 # ---------------------------------------------------------------------------
 @router.callback_query(PickModeCB.filter(F.action == "admin"))
-async def cb_mode_admin(query: CallbackQuery, user: User) -> None:
+async def cb_mode_admin(query: CallbackQuery, user: User, lang: str = "en") -> None:
     user.active_role = Role.ADMIN
     await user.save()
-    await query.message.edit_text(home_text(user), reply_markup=home_markup(user))
+    await query.message.edit_text(home_text(user, lang), reply_markup=home_markup(user, lang))
     await query.answer()
 
 
 @router.callback_query(PickModeCB.filter(F.action == "client"))
 async def cb_mode_client(
-    query: CallbackQuery, callback_data: PickModeCB, user: User
+    query: CallbackQuery, callback_data: PickModeCB, user: User, lang: str = "en"
 ) -> None:
     user.active_role = Role.CLIENT
     user.panel_email = callback_data.email
     await user.save()
-    await query.message.edit_text(home_text(user), reply_markup=home_markup(user))
+    await query.message.edit_text(home_text(user, lang), reply_markup=home_markup(user, lang))
     await query.answer()
 
 
 @router.callback_query(PickModeCB.filter(F.action == "switch"))
-async def cb_mode_switch(query: CallbackQuery, user: User, api: XUIClient) -> None:
+async def cb_mode_switch(query: CallbackQuery, user: User, api: XUIClient, lang: str = "en") -> None:
     client_emails: list[str] = (
         [user.panel_email] if user.panel_email
         else [c.email for c in await _fetch_matches(api, user.tg_id)]
     )
     if not client_emails:
-        await query.answer(
-            "No client accounts are assigned to your Telegram ID.", show_alert=True
-        )
+        await query.answer(t("no_client_accounts", lang), show_alert=True)
         return
     await query.message.edit_text(
-        "👋 How would you like to use the bot?",
-        reply_markup=mode_picker(client_emails),
+        t("mode_picker_prompt", lang),
+        reply_markup=mode_picker(client_emails, lang),
     )
     await query.answer()
 
 
+# ---------------------------------------------------------------------------
+# Language selection
+# ---------------------------------------------------------------------------
+@router.callback_query(MenuCB.filter(F.action == "language"))
+async def cb_language(query: CallbackQuery, lang: str = "en") -> None:
+    await query.message.edit_text(
+        t("choose_language", lang),
+        reply_markup=language_picker(),
+    )
+    await query.answer()
+
+
+@router.callback_query(LangCB.filter())
+async def cb_set_lang(
+    query: CallbackQuery, callback_data: LangCB, user: User
+) -> None:
+    user.language = callback_data.code
+    await user.save()
+    lang = callback_data.code
+    await query.message.edit_text(
+        t("language_set", lang),
+        reply_markup=home_markup(user, lang),
+    )
+    await query.answer()
+
+
+# ---------------------------------------------------------------------------
+# Help / cancel / home / noop
+# ---------------------------------------------------------------------------
 @router.message(Command("help"))
-async def cmd_help(message: Message, user: User) -> None:
-    if user.is_admin:
-        text = (
-            "<b>Admin commands</b>\n"
-            "/start – open the menu\n"
-            "/find &lt;email&gt; – jump straight to a client\n"
-            "/cancel – abort the current action\n\n"
-            "Everything else is driven by the inline buttons."
-        )
-    else:
-        text = (
-            "<b>Commands</b>\n"
-            "/start – open the menu\n"
-            "/cancel – abort the current action\n\n"
-            "Use the buttons to link your account and view usage."
-        )
+async def cmd_help(message: Message, user: User, lang: str = "en") -> None:
+    text = t("help_admin", lang) if user.is_admin else t("help_client", lang)
     await message.answer(text)
 
 
 @router.message(Command("cancel"))
-async def cmd_cancel(message: Message, state: FSMContext, user: User) -> None:
+async def cmd_cancel(message: Message, state: FSMContext, user: User, lang: str = "en") -> None:
     await state.clear()
-    await message.answer("Cancelled.", reply_markup=home_markup(user))
+    await message.answer(t("cancelled", lang), reply_markup=home_markup(user, lang))
 
 
 @router.callback_query(MenuCB.filter(F.action == "home"))
-async def cb_home(query: CallbackQuery, user: User, state: FSMContext) -> None:
+async def cb_home(query: CallbackQuery, user: User, state: FSMContext, lang: str = "en") -> None:
     await state.clear()
-    await query.message.edit_text(home_text(user), reply_markup=home_markup(user))
+    await query.message.edit_text(home_text(user, lang), reply_markup=home_markup(user, lang))
     await query.answer()
 
 
@@ -167,7 +169,6 @@ async def cb_noop(query: CallbackQuery) -> None:
 async def handle_error(event: ErrorEvent) -> None:
     exc = event.exception
     if isinstance(exc, TelegramBadRequest) and "message is not modified" in str(exc):
-        # User hit Refresh before anything changed — silently acknowledge.
         cq = event.update.callback_query
         if cq:
             try:

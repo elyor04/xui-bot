@@ -13,9 +13,12 @@ Admin / client Telegram bot for a **3x-ui** panel, built on **aiogram 3**.
   config links with QR codes.
 * **Dual-role admins** — if an admin also has a VPN account on the panel they can
   switch between admin and client mode with a single button.
+* **Multilingual** — the entire UI is available in English, Uzbek, Russian,
+  Chinese, and Persian. Each user picks their language once; it is remembered
+  across sessions.
 
 The panel stays the single source of truth for VPN accounts. The local
-database only records who-is-who (Telegram ↔ role ↔ panel email).
+database only records who-is-who (Telegram ↔ role ↔ panel email ↔ language).
 
 ## Architecture
 
@@ -27,10 +30,13 @@ bot/
 │   ├── client.py        #   XUIClient: Bearer-first auth, cookie fallback, envelope unwrap
 │   ├── models.py        #   pydantic models (Inbound, Client, ClientCreate, ServerStatus…)
 │   └── exceptions.py
-├── db/                  # tortoise-orm (User: tg_id, role, panel_email)
+├── db/                  # tortoise-orm (User: tg_id, role, panel_email, language)
 │   └── fsm.py           #   tortoise-backed FSM storage for aiogram
+├── i18n/
+│   └── __init__.py      #   all UI strings in 5 languages + t(key, lang, **kwargs)
 ├── handlers/
-│   ├── common.py        #   /start /help /cancel, home menu, mode switching
+│   ├── common.py        #   /start /help /cancel, home menu, mode switching,
+│   │                    #   language selection (🌐 Language button + LangCB)
 │   ├── admin/
 │   │   ├── menu.py      #   server status, online, inbounds, backup, cleanup,
 │   │   │                #   depleting-soon, sorted traffic report, restart Xray
@@ -39,13 +45,15 @@ bot/
 │   └── client/
 │       └── account.py   #   link, my account, my configs + QR codes, unlink
 ├── keyboards/           # inline keyboards + typed CallbackData factories
+│                        #   (all keyboard functions accept lang= parameter)
 ├── middlewares/
-│   ├── auth.py          #   role resolution + admin promotion from ADMIN_IDS
+│   ├── auth.py          #   role resolution + admin promotion + lang injection
 │   └── filters.py       #   IsAdmin / IsClient aiogram filters
 ├── states/              # FSM groups (CreateClient, FindClient, ExtendClient,
 │                        #   SetQuota, SetIpLimit, SetTgId, SetExpiry)
 ├── tasks/
 │   └── report.py        #   periodic report: server stats + depleting-soon list
+│                        #   (sent in each admin's own chosen language)
 └── utils/
     └── formatting.py    #   byte / date / progress bar formatting helpers
 ```
@@ -102,6 +110,26 @@ your panel under *Settings → Security → API Token*, then put it in
 If you use `XUI_USERNAME` / `XUI_PASSWORD` instead, the client logs in for a
 session cookie and re-authenticates once automatically when the session expires.
 
+## Languages
+
+The bot is fully translated into five languages. Every user picks their own
+language independently — admins and clients can each use a different one.
+
+| Code | Language | Script |
+|------|----------|--------|
+| `en` | English | Latin |
+| `uz` | O'zbek | Latin |
+| `ru` | Русский | Cyrillic |
+| `zh` | 中文 | Simplified Chinese |
+| `fa` | فارسی | Persian (RTL) |
+
+**Selecting a language:** tap the **🌐 Language** button at the bottom of the
+main menu, choose from the list, and the preference is saved immediately.
+
+**Adding a new language:** add a new key to every entry in `_S` inside
+[bot/i18n/__init__.py](bot/i18n/__init__.py) and add it to the `LANGS` dict
+at the top of the same file. No other files need to change.
+
 ## Features
 
 ### Admin
@@ -126,6 +154,7 @@ session cookie and re-authenticates once automatically when the session expires.
 | DB backup to Telegram | Main menu → Backup |
 | Restart Xray service | Main menu → Restart Xray |
 | Periodic scheduled report | Automatic, every `REPORT_INTERVAL_HOURS` |
+| Change language | Main menu → 🌐 Language |
 
 ### Client (end-user)
 
@@ -137,6 +166,7 @@ session cookie and re-authenticates once automatically when the session expires.
 | Subscription + config links | My Account → My Configs |
 | QR codes for each config | My Configs → QR |
 | Unlink account | My Account → Unlink |
+| Change language | Main menu → 🌐 Language |
 
 ## QR code support
 
@@ -169,3 +199,19 @@ Wrapped from the panel's `/panel/api/*` endpoints (all replies follow the
 
 Role gating is handled by the `IsAdmin` / `IsClient` filters already applied at
 the router level — no per-handler boilerplate needed.
+
+### Adding translatable strings
+
+All user-facing text goes through `t(key, lang, **kwargs)` from `bot.i18n`:
+
+```python
+from bot.i18n import t
+
+# In a handler (lang is injected by AuthMiddleware):
+async def cb_example(query: CallbackQuery, lang: str = "en") -> None:
+    await query.message.edit_text(t("my_new_key", lang, name="Alice"))
+```
+
+Add the key to `_S` in [bot/i18n/__init__.py](bot/i18n/__init__.py) with a
+translation for every language in `LANGS`. Keyboard functions accept a `lang`
+parameter and call `t()` for their button labels.

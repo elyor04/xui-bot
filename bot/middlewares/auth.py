@@ -51,4 +51,5 @@ class AuthMiddleware(BaseMiddleware):
             await user.save()
 
         data["user"] = user
+        data["lang"] = user.language or "en"
         return await handler(event, data)

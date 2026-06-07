@@ -5,9 +5,11 @@ import html
 import io
 import json
 import time
+import qrcode
 from datetime import datetime, timezone
 
-import qrcode  # type: ignore
+GB = 1024 ** 3
+LOCAL_TZ = datetime.now().astimezone().tzinfo
 
 
 def make_qr_png(data: str) -> bytes:
@@ -15,10 +17,6 @@ def make_qr_png(data: str) -> bytes:
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
-
-GB = 1024 ** 3
-
-LOCAL_TZ = datetime.now().astimezone().tzinfo
 
 
 def human_bytes(n: int | float) -> str:

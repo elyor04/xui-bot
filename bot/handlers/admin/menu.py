@@ -8,6 +8,7 @@ from aiogram import F, Router
 from aiogram.types import CallbackQuery
 
 from bot.api import XUIClient, XUIError
+from bot.i18n import t
 from bot.keyboards.admin import back_home, back_home_refresh, confirm_reset_all, online_clients_list
 from bot.keyboards.callbacks import ConfirmCB, MenuCB
 from bot.middlewares.filters import IsAdmin
@@ -16,18 +17,17 @@ from bot.utils.formatting import LOCAL_TZ, compact_bytes, esc, fmt_expiry, fmt_e
 router = Router(name="admin-menu")
 router.callback_query.filter(IsAdmin())
 
-# Threshold below which a client/inbound is considered "depleting soon"
-_TRAFFIC_WARN_RATIO = 0.10   # < 10 % remaining
-_EXPIRY_WARN_DAYS   = 7      # < 7 days remaining
+_TRAFFIC_WARN_RATIO = 0.10
+_EXPIRY_WARN_DAYS   = 7
 
 
 @router.callback_query(MenuCB.filter(F.action == "server"))
-async def cb_server(query: CallbackQuery, api: XUIClient) -> None:
-    await query.answer("Loading…")
+async def cb_server(query: CallbackQuery, api: XUIClient, lang: str = "en") -> None:
+    await query.answer(t("loading", lang))
     try:
         st = await api.server_status()
     except XUIError as exc:
-        await query.message.edit_text(f"⚠️ {esc(str(exc))}", reply_markup=back_home())
+        await query.message.edit_text(f"⚠️ {esc(str(exc))}", reply_markup=back_home(lang))
         return
 
     online_count: int | str = "?"
@@ -43,7 +43,6 @@ async def cb_server(query: CallbackQuery, api: XUIClient) -> None:
     xray_version = esc(str(xray.get("version", "?")))
     xray_state = esc(str(xray.get("state", "?")))
 
-    # IP addresses — try ipAddresses list first, fall back to publicIP
     raw_ips = st.ipAddresses
     if isinstance(raw_ips, list):
         all_ips = [str(ip) for ip in raw_ips]
@@ -58,7 +57,6 @@ async def cb_server(query: CallbackQuery, api: XUIClient) -> None:
     ipv4_str = esc(" ".join(ipv4_ips)) if ipv4_ips else "?"
     ipv6_str = esc(" ".join(ipv6_ips))
 
-    # Xray traffic — try xray.traffic, then netTraffic
     xray_traffic = xray.get("traffic") or {}
     if isinstance(xray_traffic, dict):
         xray_up = xray_traffic.get("up", 0)
@@ -76,58 +74,57 @@ async def cb_server(query: CallbackQuery, api: XUIClient) -> None:
     refresh_ts = datetime.now(tz=LOCAL_TZ).strftime("%Y-%m-%d %H:%M:%S")
 
     lines = [
-        f"📡 Xray Version: {xray_version}",
-        f"🌐 IPv4: {ipv4_str}",
+        t("server_xray_version", lang, v=xray_version),
+        t("server_ipv4", lang, v=ipv4_str),
     ]
     if ipv6_str:
-        lines.append(f"🌐 IPv6: {ipv6_str}")
+        lines.append(t("server_ipv6", lang, v=ipv6_str))
     lines += [
-        f"⏳ Uptime: {fmt_uptime_days(st.uptime)}",
-        f"📈 System Load: {loads_str}",
-        f"📋 RAM: {ram_used}/{ram_total}",
-        f"🌐 Online Clients: {online_count}",
-        f"🔹 TCP: {st.tcpCount}",
-        f"🔸 UDP: {st.udpCount}",
-        f"🚦 Traffic: {compact_bytes(xray_total)} (↑{compact_bytes(xray_up)},↓{compact_bytes(xray_down)})",
-        f"ℹ️ Status: {xray_state}",
+        t("server_uptime", lang, v=fmt_uptime_days(st.uptime)),
+        t("server_load", lang, v=loads_str),
+        t("server_ram", lang, used=ram_used, total=ram_total),
+        t("server_online", lang, v=online_count),
+        t("server_tcp", lang, v=st.tcpCount),
+        t("server_udp", lang, v=st.udpCount),
+        t("server_traffic", lang, total=compact_bytes(xray_total), up=compact_bytes(xray_up), down=compact_bytes(xray_down)),
+        t("server_status_line", lang, v=xray_state),
         "",
-        f"📋🔄 Refreshed On: {refresh_ts}",
+        t("refreshed_on", lang, v=refresh_ts),
     ]
-    await query.message.edit_text("\n".join(lines), reply_markup=back_home_refresh(MenuCB(action="server")))
+    await query.message.edit_text("\n".join(lines), reply_markup=back_home_refresh(MenuCB(action="server"), lang))
 
 
 @router.callback_query(MenuCB.filter(F.action == "online"))
-async def cb_online(query: CallbackQuery, api: XUIClient) -> None:
-    await query.answer("Loading…")
+async def cb_online(query: CallbackQuery, api: XUIClient, lang: str = "en") -> None:
+    await query.answer(t("loading", lang))
     try:
         emails = await api.online_clients()
     except XUIError as exc:
-        await query.message.edit_text(f"⚠️ {esc(str(exc))}", reply_markup=back_home())
+        await query.message.edit_text(f"⚠️ {esc(str(exc))}", reply_markup=back_home(lang))
         return
     if not emails:
         await query.message.edit_text(
-            "🟢 <b>Online clients</b>\n\nNo clients are online right now.",
-            reply_markup=back_home_refresh(MenuCB(action="online")),
+            t("online_empty", lang),
+            reply_markup=back_home_refresh(MenuCB(action="online"), lang),
         )
         return
     shown = emails[:60]
-    header = f"🟢 <b>Online clients</b> — {len(emails)} total"
+    header = t("online_title", lang, count=len(emails))
     if len(emails) > 60:
-        header += f"\n(showing first 60)"
-    kb = online_clients_list(shown)
-    await query.message.edit_text(header, reply_markup=kb)
+        header += t("online_showing_first", lang)
+    await query.message.edit_text(header, reply_markup=online_clients_list(shown, lang))
 
 
 @router.callback_query(MenuCB.filter(F.action == "inbounds"))
-async def cb_inbounds(query: CallbackQuery, api: XUIClient) -> None:
-    await query.answer("Loading…")
+async def cb_inbounds(query: CallbackQuery, api: XUIClient, lang: str = "en") -> None:
+    await query.answer(t("loading", lang))
     try:
         inbounds = await api.list_inbounds()
     except XUIError as exc:
-        await query.message.edit_text(f"⚠️ {esc(str(exc))}", reply_markup=back_home())
+        await query.message.edit_text(f"⚠️ {esc(str(exc))}", reply_markup=back_home(lang))
         return
     if not inbounds:
-        await query.message.edit_text("No inbounds configured.", reply_markup=back_home())
+        await query.message.edit_text(t("inbounds_empty", lang), reply_markup=back_home(lang))
         return
 
     refresh_ts = datetime.now(tz=LOCAL_TZ).strftime("%Y-%m-%d %H:%M:%S")
@@ -135,49 +132,48 @@ async def cb_inbounds(query: CallbackQuery, api: XUIClient) -> None:
     for ib in inbounds:
         expiry = fmt_expiry_card(ib.expiry_time, ib.reset)
         section = "\n".join([
-            f"📍 Inbound: {esc(ib.remark or ib.protocol)}",
-            f"🔌 Port: {ib.port}",
-            f"🚦 Traffic: {compact_bytes(ib.up + ib.down)} (↑{compact_bytes(ib.up)},↓{compact_bytes(ib.down)})",
-            f"👥 Clients: {len(ib.client_stats)}",
-            f"📅 Expire Date: {expiry}",
+            t("inbound_name", lang, v=esc(ib.remark or ib.protocol)),
+            t("inbound_port", lang, v=ib.port),
+            t("inbound_traffic", lang, total=compact_bytes(ib.up + ib.down), up=compact_bytes(ib.up), down=compact_bytes(ib.down)),
+            t("inbound_clients", lang, v=len(ib.client_stats)),
+            t("inbound_expire", lang, v=expiry),
         ])
         sections.append(section)
 
-    text = "\n\n".join(sections) + f"\n\n📋🔄 Refreshed On: {refresh_ts}"
-    await query.message.edit_text(text, reply_markup=back_home_refresh(MenuCB(action="inbounds")))
+    text = "\n\n".join(sections) + f"\n\n{t('refreshed_on', lang, v=refresh_ts)}"
+    await query.message.edit_text(text, reply_markup=back_home_refresh(MenuCB(action="inbounds"), lang))
 
 
 @router.callback_query(MenuCB.filter(F.action == "backup"))
-async def cb_backup(query: CallbackQuery, api: XUIClient) -> None:
-    await query.answer("Sending backup…")
+async def cb_backup(query: CallbackQuery, api: XUIClient, lang: str = "en") -> None:
+    await query.answer(t("backup_sending", lang))
     try:
         await api.backup_to_telegram()
-        text = "💾 Backup dispatched to the panel's configured Telegram admins."
+        text = t("backup_done", lang)
     except XUIError as exc:
         text = f"⚠️ {esc(str(exc))}"
-    await query.message.edit_text(text, reply_markup=back_home())
+    await query.message.edit_text(text, reply_markup=back_home(lang))
 
 
 @router.callback_query(MenuCB.filter(F.action == "deldepleted"))
-async def cb_del_depleted(query: CallbackQuery, api: XUIClient) -> None:
-    await query.answer("Cleaning up…")
+async def cb_del_depleted(query: CallbackQuery, api: XUIClient, lang: str = "en") -> None:
+    await query.answer(t("cleanup_cleaning", lang))
     try:
         obj = await api.delete_depleted()
         count = obj.get("deleted") if isinstance(obj, dict) else obj
-        text = f"🧹 Removed depleted/expired clients: <b>{esc(count)}</b>."
+        text = t("cleanup_done", lang, count=esc(count))
     except XUIError as exc:
         text = f"⚠️ {esc(str(exc))}"
-    await query.message.edit_text(text, reply_markup=back_home())
+    await query.message.edit_text(text, reply_markup=back_home(lang))
 
 
 @router.callback_query(MenuCB.filter(F.action == "deplete_soon"))
-async def cb_deplete_soon(query: CallbackQuery, api: XUIClient) -> None:
-    """Show inbounds and clients that are nearing their traffic or expiry limit."""
-    await query.answer("Loading…")
+async def cb_deplete_soon(query: CallbackQuery, api: XUIClient, lang: str = "en") -> None:
+    await query.answer(t("loading", lang))
     try:
         inbounds = await api.list_inbounds()
     except XUIError as exc:
-        await query.message.edit_text(f"⚠️ {esc(str(exc))}", reply_markup=back_home())
+        await query.message.edit_text(f"⚠️ {esc(str(exc))}", reply_markup=back_home(lang))
         return
 
     now_ms = int(time.time() * 1000)
@@ -226,59 +222,54 @@ async def cb_deplete_soon(query: CallbackQuery, api: XUIClient) -> None:
                 )
 
     lines: list[str] = [
-        f"⚠️ <b>Depleting soon</b>\n",
-        f"Disabled inbounds: <b>{disabled_inbounds}</b>",
-        f"Disabled clients: <b>{disabled_clients}</b>\n",
+        t("deplete_title", lang),
+        t("deplete_disabled_inbounds", lang, v=disabled_inbounds),
+        t("deplete_disabled_clients", lang, v=disabled_clients) + "\n",
     ]
     if warn_inbounds:
-        lines.append("📦 <b>Inbounds near limit:</b>")
+        lines.append(t("deplete_inbounds_header", lang))
         lines.extend(warn_inbounds)
         lines.append("")
     if warn_clients:
-        lines.append("👥 <b>Clients near limit:</b>")
+        lines.append(t("deplete_clients_header", lang))
         lines.extend(warn_clients)
     if not warn_inbounds and not warn_clients:
-        lines.append("✅ No inbounds or clients are close to their limits.")
+        lines.append(t("deplete_none", lang))
 
-    await query.message.edit_text("\n".join(lines), reply_markup=back_home_refresh(MenuCB(action="deplete_soon")))
+    await query.message.edit_text("\n".join(lines), reply_markup=back_home_refresh(MenuCB(action="deplete_soon"), lang))
 
 
 @router.callback_query(MenuCB.filter(F.action == "reset_all"))
-async def cb_reset_all(query: CallbackQuery) -> None:
-    """Prompt confirmation before resetting all client traffic counters."""
+async def cb_reset_all(query: CallbackQuery, lang: str = "en") -> None:
     await query.message.edit_text(
-        "⚠️ <b>Reset ALL client traffic?</b>\n\n"
-        "This will zero the up/down counters for every client on the panel. "
-        "This action cannot be undone.",
-        reply_markup=confirm_reset_all(),
+        t("reset_all_confirm", lang),
+        reply_markup=confirm_reset_all(lang),
     )
     await query.answer()
 
 
 @router.callback_query(ConfirmCB.filter((F.action == "yes") & (F.scope == "reset_all")))
-async def cb_reset_all_confirm(query: CallbackQuery, api: XUIClient) -> None:
-    """Execute reset of all client traffic after confirmation."""
-    await query.answer("Resetting…")
+async def cb_reset_all_confirm(query: CallbackQuery, api: XUIClient, lang: str = "en") -> None:
+    await query.answer(t("reset_all_resetting", lang))
     try:
         await api.reset_all_traffics()
     except XUIError as exc:
-        await query.message.edit_text(f"⚠️ {esc(str(exc))}", reply_markup=back_home())
+        await query.message.edit_text(f"⚠️ {esc(str(exc))}", reply_markup=back_home(lang))
         return
-    await query.message.edit_text("✅ Traffic reset for all clients.", reply_markup=back_home())
+    await query.message.edit_text(t("reset_all_done", lang), reply_markup=back_home(lang))
 
 
 @router.callback_query(MenuCB.filter(F.action == "sorted_report"))
-async def cb_sorted_report(query: CallbackQuery, api: XUIClient) -> None:
-    """Show all clients sorted by total traffic used (descending)."""
-    await query.answer("Loading…")
+async def cb_sorted_report(query: CallbackQuery, api: XUIClient, lang: str = "en") -> None:
+    await query.answer(t("loading", lang))
     try:
         clients = await api.list_clients()
     except XUIError as exc:
-        await query.message.edit_text(f"⚠️ {esc(str(exc))}", reply_markup=back_home())
+        await query.message.edit_text(f"⚠️ {esc(str(exc))}", reply_markup=back_home(lang))
         return
 
     clients_sorted = sorted(clients, key=lambda c: c.used, reverse=True)
-    lines: list[str] = ["📊 <b>Clients by traffic used</b>\n"]
+    lines: list[str] = [t("sorted_title", lang)]
     for i, c in enumerate(clients_sorted[:50], 1):
         status = "🟢" if c.enable else "🔴"
         quota = fmt_quota(c.total_gb)
@@ -288,33 +279,24 @@ async def cb_sorted_report(query: CallbackQuery, api: XUIClient) -> None:
             f"   {human_bytes(c.used)} / {quota} · exp {exp}"
         )
     if len(clients_sorted) > 50:
-        lines.append(f"\n… and {len(clients_sorted) - 50} more clients.")
+        lines.append(t("sorted_more", lang, count=len(clients_sorted) - 50))
     if not clients_sorted:
-        lines.append("No clients found.")
-    await query.message.edit_text("\n".join(lines), reply_markup=back_home_refresh(MenuCB(action="sorted_report")))
+        lines.append(t("sorted_empty", lang))
+    await query.message.edit_text("\n".join(lines), reply_markup=back_home_refresh(MenuCB(action="sorted_report"), lang))
 
 
 @router.callback_query(MenuCB.filter(F.action == "commands"))
-async def cb_commands(query: CallbackQuery) -> None:
-    """Show available admin commands."""
+async def cb_commands(query: CallbackQuery, lang: str = "en") -> None:
     await query.answer()
-    text = (
-        "📋 <b>Admin commands</b>\n\n"
-        "/start — open the main menu\n"
-        "/find &lt;email&gt; — jump to a client by email\n"
-        "/cancel — abort the current multi-step action\n\n"
-        "Everything else is driven by the inline buttons."
-    )
-    await query.message.edit_text(text, reply_markup=back_home())
+    await query.message.edit_text(t("commands_text", lang), reply_markup=back_home(lang))
 
 
 @router.callback_query(MenuCB.filter(F.action == "restart"))
-async def cb_restart(query: CallbackQuery, api: XUIClient) -> None:
-    """Restart the Xray service on the panel."""
-    await query.answer("Restarting Xray…")
+async def cb_restart(query: CallbackQuery, api: XUIClient, lang: str = "en") -> None:
+    await query.answer(t("restart_restarting", lang))
     try:
         await api.restart_xray()
-        text = "⚡ Xray service restarted successfully."
+        text = t("restart_done", lang)
     except XUIError as exc:
         text = f"⚠️ {esc(str(exc))}"
-    await query.message.edit_text(text, reply_markup=back_home())
+    await query.message.edit_text(text, reply_markup=back_home(lang))
