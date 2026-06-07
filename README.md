@@ -167,8 +167,9 @@ on all platforms.
 | Jump to a specific client (text search) | `/find <email>` |
 | Search clients via inline query | Find prompt → 🔍 Search inline |
 | Create client (guided wizard) | Clients list → ➕ Add |
-| Edit client — extend, set quota, IP limit, TG ID | Client card buttons |
-| Reset individual / all traffic | Client card → Reset Traffic |
+| Edit client — extend, set expiry, set quota, IP limit, TG ID | Client card buttons |
+| Reset individual client traffic | Client card → Reset Traffic |
+| Reset all clients' traffic | Main menu → Reset All Traffic |
 | Enable / disable client | Client card → toggle |
 | Config links + QR codes | Client card → Links / QR |
 | Connecting IPs + clear IPs | Client card → IPs |
@@ -217,11 +218,12 @@ QR buttons simply will not appear.
 Wrapped from the panel's `/panel/api/*` endpoints (all replies follow the
 `{success, msg, obj}` envelope):
 
-* **Inbounds** — `list`, `options`, `get/:id`, `setEnable/:id`
+* **Inbounds** — `list`, `options`, `get/:id`, `setEnable/:id`, `/:id/delAllClients`
 * **Clients** — `list`, `get/:email`, `add`, `update/:email`, `del/:email`,
-  `resetTraffic/:email`, `resetAllTraffics`, `bulkAdjust`, `links/:email`,
-  `subLinks/:subId`, `ips/:email`, `clearIps/:email`, `onlines`, `delDepleted`,
-  `list/paged` (search)
+  `resetTraffic/:email`, `resetAllTraffics`, `bulkAdjust`, `bulkDel`,
+  `bulkResetTraffic`, `links/:email`, `subLinks/:subId`, `ips/:email`,
+  `clearIps/:email`, `onlines`, `delDepleted`, `list/paged` (search),
+  `:email/attach`, `:email/detach`
 * **Server** — `status`, `getNewUUID`, `restartXrayService`, `backuptotgbot`
 
 > The client payload shape (`totalGB` in **bytes**, `expiryTime` as **unix ms**,
