@@ -249,7 +249,7 @@ async def _inline_find_clients(
                 input_message_content=InputTextMessageContent(message_text=email),
             )
         )
-    await query.answer(results, cache_time=10, is_personal=True)
+    await query.answer(results, cache_time=5, is_personal=True)
 
 
 async def _inline_timezones(query: InlineQuery, q: str, lang: str) -> None:
@@ -298,7 +298,7 @@ async def _inline_timezones(query: InlineQuery, q: str, lang: str) -> None:
         except Exception:
             continue
 
-    await query.answer(results, cache_time=60, is_personal=True)
+    await query.answer(results, cache_time=5, is_personal=True)
 
 
 @router.message(SelectTimezone.waiting)
