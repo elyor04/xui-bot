@@ -156,9 +156,9 @@ async def cb_mylinks(query: CallbackQuery, user: User, api: XUIClient, settings:
     client = await api.get_client(user.panel_email)
     if client and client.sub_id and settings.sub_base_url:
         sub = settings.sub_base_url.rstrip("/") + "/" + client.sub_id
-        parts.append(f"{t('my_sub_label', lang)}\n<code>{sub}</code>")
+        parts.append(f"{t('my_sub_label', lang)}\n<code>{esc(sub)}</code>")
     if links:
-        parts.append("\n".join(f"<code>{u}</code>" for u in links))
+        parts.append("\n".join(f"<code>{esc(u)}</code>" for u in links))
     if not parts:
         parts.append(t("my_configs_no_links", lang))
 

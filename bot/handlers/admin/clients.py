@@ -337,7 +337,7 @@ async def cb_links(query: CallbackQuery, callback_data: ClientCB, api: XUIClient
     if not links:
         body = t("no_links", lang)
     else:
-        body = "\n\n".join(f"<code>{u}</code>" for u in links)
+        body = "\n\n".join(f"<code>{esc(u)}</code>" for u in links)
     await query.message.edit_text(
         f"{t('links_title', lang, email=esc(callback_data.email))}\n\n{body}",
         reply_markup=back_home(lang),
@@ -385,7 +385,7 @@ async def cb_sublinks(
     parts: list[str] = []
     if client.sub_id and settings.sub_base_url:
         sub_url = settings.sub_base_url.rstrip("/") + "/" + client.sub_id
-        parts.append(f"{t('sub_url_label', lang)}\n<code>{sub_url}</code>")
+        parts.append(f"{t('sub_url_label', lang)}\n<code>{esc(sub_url)}</code>")
     else:
         parts.append(t("no_sub_url", lang))
 
