@@ -214,8 +214,6 @@ async def handle_inline_query(
         await _inline_find_clients(query, api, q, lang, tz)
     elif current_state == SelectTimezone.waiting.state:
         await _inline_timezones(query, q, lang)
-    else:
-        await query.answer([], cache_time=0, is_personal=True)
 
 
 async def _inline_find_clients(
@@ -225,13 +223,10 @@ async def _inline_find_clients(
     lang: str,
     tz: ZoneInfo | None,
 ) -> None:
-    if not q:
-        await query.answer([], cache_time=0, is_personal=True)
-        return
     try:
         clients, _ = await api.search_clients(q, page_size=50)
     except Exception:
-        await query.answer([], cache_time=5, is_personal=True)
+        await query.answer([], cache_time=1, is_personal=True)
         return
 
     results: list[InlineQueryResultArticle] = []
@@ -239,9 +234,9 @@ async def _inline_find_clients(
         if not c.email:
             continue
         used_str = compact_bytes(c.up + c.down)
-        quota_str = "∞" if not c.total_gb else compact_bytes(c.total_gb)
+        quota_str = "♾️" if not c.total_gb else compact_bytes(c.total_gb)
         if not c.expiry_time:
-            exp_str = "∞"
+            exp_str = "♾️"
         elif c.expiry_time < 0:
             exp_str = f"{abs(c.expiry_time) // (1000 * 86400)}d from start"
         else:
