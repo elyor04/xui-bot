@@ -207,12 +207,6 @@ The bot handles inline queries (`@botname query`) for two purposes:
 
 The active FSM state determines which results are shown — no prefix needed.
 
-## QR code support
-
-QR code generation requires the optional `qrcode[pil]` dependency (already
-listed in `requirements.txt`). If it is not installed the bot runs normally —
-QR buttons simply will not appear.
-
 ## API surface used
 
 Wrapped from the panel's `/panel/api/*` endpoints (all replies follow the
