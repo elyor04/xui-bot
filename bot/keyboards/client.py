@@ -20,10 +20,10 @@ def client_menu(linked: bool, switch: bool = False, lang: str = "en") -> InlineK
         kb.button(text=t("btn_link_account", lang), callback_data=MenuCB(action="link"))
         kb.adjust(1)
     extras = InlineKeyboardBuilder()
+    extras.button(text=t("btn_language", lang), callback_data=MenuCB(action="language"))
     if switch:
         extras.button(text=t("btn_switch_to_admin", lang), callback_data=PickModeCB(action="admin"))
-    extras.button(text=t("btn_language", lang), callback_data=MenuCB(action="language"))
-    extras.adjust(1)
+    extras.adjust(2 if switch else 1)
     kb.attach(extras)
     return kb.as_markup()
 

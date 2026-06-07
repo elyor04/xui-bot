@@ -51,10 +51,10 @@ def admin_menu(switch: bool = False, lang: str = "en") -> InlineKeyboardMarkup:
     kb.button(text=t("btn_create_client", lang), callback_data=MenuCB(action="create"))
     kb.adjust(1, 2, 2, 2, 2, 2)
     extras = InlineKeyboardBuilder()
+    extras.button(text=t("btn_language", lang), callback_data=MenuCB(action="language"))
     if switch:
         extras.button(text=t("btn_switch_to_client", lang), callback_data=PickModeCB(action="switch"))
-    extras.button(text=t("btn_language", lang), callback_data=MenuCB(action="language"))
-    extras.adjust(1)
+    extras.adjust(2 if switch else 1)
     kb.attach(extras)
     return kb.as_markup()
 
