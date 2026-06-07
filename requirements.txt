@@ -5,6 +5,7 @@ pydantic-settings>=2.3
 tortoise-orm>=0.21
 qrcode[pil]>=7.4
 apscheduler>=3.10,<4.0
+tzdata>=2024.1
 # Optional: PostgreSQL backend for tortoise. Uncomment to use.
 # asyncpg>=0.29
 # Optional: faster event loop (Linux/macOS only).

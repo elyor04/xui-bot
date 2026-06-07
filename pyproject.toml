@@ -10,11 +10,13 @@ dependencies = [
     "pydantic-settings>=2.3",
     "tortoise-orm>=0.21",
     "qrcode[pil]>=7.4",
+    "apscheduler>=3.10,<4.0",
     "tzdata>=2024.1",
 ]
 
 [project.optional-dependencies]
 postgres = ["asyncpg>=0.29"]
+speed = ["uvloop>=0.19"]
 
 [project.scripts]
 xui-bot = "bot.__main__:main"
