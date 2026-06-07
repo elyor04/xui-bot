@@ -211,7 +211,7 @@ async def handle_inline_query(
 
     if current_state == FindClient.email.state and user.is_admin:
         await _inline_find_clients(query, api, q, lang, tz)
-    else:
+    elif current_state == SelectTimezone.waiting.state:
         await _inline_timezones(query, q, lang)
 
 
