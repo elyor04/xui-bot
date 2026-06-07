@@ -133,6 +133,15 @@ def client_card(client: Client) -> InlineKeyboardMarkup:
 # Clients list
 # ---------------------------------------------------------------------------
 
+def online_clients_list(emails: list[str]) -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    for email in emails:
+        kb.button(text=f"🟢 {email}", callback_data=ClientCB(action="view", email=email))
+    kb.adjust(1)
+    kb.attach(_footer())
+    return kb.as_markup()
+
+
 def inbound_filter(options: list[InboundOption]) -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(text="👥 All clients", callback_data=PageCB(target="clients", page=0, inbound_id=-1))

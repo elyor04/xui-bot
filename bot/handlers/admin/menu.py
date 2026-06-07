@@ -8,7 +8,7 @@ from aiogram import F, Router
 from aiogram.types import CallbackQuery
 
 from bot.api import XUIClient, XUIError
-from bot.keyboards.admin import back_home, back_home_refresh, confirm_reset_all
+from bot.keyboards.admin import back_home, back_home_refresh, confirm_reset_all, online_clients_list
 from bot.keyboards.callbacks import ConfirmCB, MenuCB
 from bot.middlewares.filters import IsAdmin
 from bot.utils.formatting import LOCAL_TZ, compact_bytes, esc, fmt_expiry, fmt_expiry_card, fmt_quota, fmt_uptime_days, human_bytes
@@ -105,15 +105,17 @@ async def cb_online(query: CallbackQuery, api: XUIClient) -> None:
         await query.message.edit_text(f"⚠️ {esc(str(exc))}", reply_markup=back_home())
         return
     if not emails:
-        body = "No clients are online right now."
-    else:
-        listed = "\n".join(f"• <code>{esc(e)}</code>" for e in emails[:60])
-        more = f"\n… and {len(emails) - 60} more" if len(emails) > 60 else ""
-        body = f"<b>{len(emails)}</b> online:\n{listed}{more}"
-    await query.message.edit_text(
-        f"🟢 <b>Online clients</b>\n\n{body}",
-        reply_markup=back_home_refresh(MenuCB(action="online")),
-    )
+        await query.message.edit_text(
+            "🟢 <b>Online clients</b>\n\nNo clients are online right now.",
+            reply_markup=back_home_refresh(MenuCB(action="online")),
+        )
+        return
+    shown = emails[:60]
+    header = f"🟢 <b>Online clients</b> — {len(emails)} total"
+    if len(emails) > 60:
+        header += f"\n(showing first 60)"
+    kb = online_clients_list(shown)
+    await query.message.edit_text(header, reply_markup=kb)
 
 
 @router.callback_query(MenuCB.filter(F.action == "inbounds"))
