@@ -182,6 +182,7 @@ async def cb_deplete_soon(query: CallbackQuery, api: XUIClient, lang: str = "en"
 
     warn_inbounds: list[str] = []
     warn_clients: list[str] = []
+    seen_client_emails: set[str] = set()
     disabled_inbounds = 0
     disabled_clients = 0
 
@@ -214,7 +215,8 @@ async def cb_deplete_soon(query: CallbackQuery, api: XUIClient, lang: str = "en"
                     client_warn = True
             if cs.expiry_time > 0 and (cs.expiry_time - now_ms) < warn_ms:
                 client_warn = True
-            if client_warn:
+            if client_warn and cs.email not in seen_client_emails:
+                seen_client_emails.add(cs.email)
                 exp = fmt_expiry(cs.expiry_time, tz)
                 quota = fmt_quota(cs.total)
                 used = human_bytes(cs.used)
