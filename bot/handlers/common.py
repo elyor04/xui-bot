@@ -53,10 +53,7 @@ async def cmd_start(message: Message, user: User, state: FSMContext, api: XUICli
 
     if user.role == Role.ADMIN:
         if user.active_role is None:
-            client_emails: list[str] = (
-                [user.panel_email] if user.panel_email
-                else [c.email for c in await _fetch_matches(api, user.tg_id)]
-            )
+            client_emails: list[str] = [c.email for c in await _fetch_matches(api, user.tg_id)]
             if client_emails:
                 await message.answer(
                     t("mode_picker_prompt", lang),
@@ -109,10 +106,7 @@ async def cb_mode_client(
 
 @router.callback_query(PickModeCB.filter(F.action == "switch"))
 async def cb_mode_switch(query: CallbackQuery, user: User, api: XUIClient, lang: str = "en") -> None:
-    client_emails: list[str] = (
-        [user.panel_email] if user.panel_email
-        else [c.email for c in await _fetch_matches(api, user.tg_id)]
-    )
+    client_emails: list[str] = [c.email for c in await _fetch_matches(api, user.tg_id)]
     if not client_emails:
         await query.answer(t("no_client_accounts", lang), show_alert=True)
         return
