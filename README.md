@@ -76,13 +76,16 @@ The bot uses long-polling — no webhook setup needed.
 ### Docker Compose
 
 ```bash
-cp .env.example .env   # fill in the required variables
+cp .env.example .env        # fill in the required variables
+touch bot.sqlite3           # pre-create the DB file so Docker doesn't make it a directory
+docker compose build
 docker compose up -d
 ```
 
-The `docker-compose.yaml` mounts the project directory into `/app` inside a
-`python:3.13` container, installs dependencies at startup, and restarts unless
-stopped.
+The `Dockerfile` uses `python:3.13-slim` and bakes all dependencies in at build
+time, so container restarts are instant and need no network access. Only `.env`
+and `bot.sqlite3` are bind-mounted — the rest of the image is self-contained.
+Rebuild (`docker compose build`) only when `requirements.txt` changes.
 
 ## Configuration (`.env`)
 

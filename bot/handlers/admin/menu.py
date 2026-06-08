@@ -169,7 +169,7 @@ async def cb_del_depleted(query: CallbackQuery, api: XUIClient, lang: str = "en"
 
 
 @router.callback_query(MenuCB.filter(F.action == "deplete_soon"))
-async def cb_deplete_soon(query: CallbackQuery, api: XUIClient, lang: str = "en") -> None:
+async def cb_deplete_soon(query: CallbackQuery, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     await query.answer(t("loading", lang))
     try:
         inbounds = await api.list_inbounds()
@@ -200,7 +200,7 @@ async def cb_deplete_soon(query: CallbackQuery, api: XUIClient, lang: str = "en"
             warn_inbounds.append(
                 f"📦 <b>{esc(ib.remark or ib.protocol)}</b> #{ib.id} — "
                 f"traffic left: {human_bytes(max(0, ib.total - ib.up - ib.down))} · "
-                f"exp: {fmt_expiry(ib.expiry_time)}"
+                f"exp: {fmt_expiry(ib.expiry_time, tz)}"
             )
 
         for cs in ib.client_stats:
@@ -215,7 +215,7 @@ async def cb_deplete_soon(query: CallbackQuery, api: XUIClient, lang: str = "en"
             if cs.expiry_time > 0 and (cs.expiry_time - now_ms) < warn_ms:
                 client_warn = True
             if client_warn:
-                exp = fmt_expiry(cs.expiry_time)
+                exp = fmt_expiry(cs.expiry_time, tz)
                 quota = fmt_quota(cs.total)
                 used = human_bytes(cs.used)
                 warn_clients.append(
@@ -261,7 +261,7 @@ async def cb_reset_all_confirm(query: CallbackQuery, api: XUIClient, lang: str =
 
 
 @router.callback_query(MenuCB.filter(F.action == "sorted_report"))
-async def cb_sorted_report(query: CallbackQuery, api: XUIClient, lang: str = "en") -> None:
+async def cb_sorted_report(query: CallbackQuery, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     await query.answer(t("loading", lang))
     try:
         clients = await api.list_clients()
@@ -274,7 +274,7 @@ async def cb_sorted_report(query: CallbackQuery, api: XUIClient, lang: str = "en
     for i, c in enumerate(clients_sorted[:50], 1):
         status = "🟢" if c.enable else "🔴"
         quota = fmt_quota(c.total_gb)
-        exp = fmt_expiry(c.expiry_time)
+        exp = fmt_expiry(c.expiry_time, tz)
         lines.append(
             f"{i}. {status} <code>{esc(c.email)}</code>\n"
             f"   {human_bytes(c.used)} / {quota} · exp {exp}"
