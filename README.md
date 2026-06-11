@@ -104,7 +104,7 @@ Rebuild (`docker compose build`) only when `requirements.txt` changes.
 | `DEFAULT_INBOUND_IDS` | | — | Comma-separated inbound IDs pre-selected in quick-create flow |
 | `DEFAULT_QUOTA_GB` | | `50` | Default traffic quota (GB) offered in the create wizard |
 | `DEFAULT_DAYS` | | `30` | Default validity (days) offered in the create wizard |
-| `REPORT_INTERVAL_HOURS` | | `12` | Send periodic server report to all admins every N hours (`0` = disabled) |
+| `REPORT_CRON_HOURS` | | `*/12` | Cron hours expression for the periodic server report (e.g. `*/12`, `0,12`, `*/6`). Empty = disabled |
 | `DB_URL` | | `sqlite://bot.sqlite3` | `sqlite://bot.sqlite3` or `postgres://user:pass@host:5432/db` (needs `asyncpg`) |
 
 ### Authentication
@@ -182,7 +182,7 @@ on all platforms.
 | Purge depleted / expired accounts | Main menu → Delete Depleted |
 | DB backup to Telegram | Main menu → Backup |
 | Restart Xray service | Main menu → Restart Xray |
-| Periodic scheduled report | Automatic, every `REPORT_INTERVAL_HOURS` |
+| Periodic scheduled report | Automatic, schedule set by `REPORT_CRON_HOURS` |
 | Change language | Main menu → 🌐 Language |
 | Set timezone | `/timezone` |
 

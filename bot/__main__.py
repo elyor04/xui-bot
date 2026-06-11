@@ -12,7 +12,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.types import BotCommand, BotCommandScopeAllPrivateChats
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.interval import IntervalTrigger
+from apscheduler.triggers.cron import CronTrigger
 
 from bot.api import XUIClient
 from bot.config import get_settings
@@ -64,13 +64,13 @@ async def main() -> None:
     dp.include_router(build_router())
 
     scheduler = AsyncIOScheduler()
-    if settings.report_interval_hours and settings.admin_ids:
+    if settings.report_cron_hours and settings.admin_ids:
         scheduler.add_job(
             send_report,
-            IntervalTrigger(hours=settings.report_interval_hours),
+            CronTrigger(hour=settings.report_cron_hours),
             args=[bot, api, settings],
         )
-        logger.info("Periodic report scheduled every %sh", settings.report_interval_hours)
+        logger.info("Periodic report scheduled at hours: %s", settings.report_cron_hours)
 
     try:
         me = await bot.get_me()

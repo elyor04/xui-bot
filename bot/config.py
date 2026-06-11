@@ -54,9 +54,10 @@ class Settings(BaseSettings):
     default_quota_gb: int = 50
     default_days: int = 30
 
-    # Scheduled report: send server + depleting-soon summary to all admin_ids
-    # every N hours. 0 = disabled.
-    report_interval_hours: int = 12
+    # Scheduled report: send server + depleting-soon summary to all admin_ids.
+    # Cron-style hours expression passed to APScheduler CronTrigger, e.g. "*/12" or "0,12"
+    # fires at 00:00 and 12:00. Empty string = disabled.
+    report_cron_hours: str = "*/12"
 
     @field_validator("admin_ids", "default_inbound_ids", mode="before")
     @classmethod
