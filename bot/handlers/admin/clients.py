@@ -36,11 +36,12 @@ from bot.keyboards.admin import (
     inbound_filter,
     inbound_picker,
     ip_log_kb,
+    numpad_kb,
     quick_days,
     quick_iplimit,
     quick_quota,
 )
-from bot.keyboards.callbacks import ClientCB, ConfirmCB, InbPickCB, MenuCB, PageCB, QuickPickCB
+from bot.keyboards.callbacks import ClientCB, ConfirmCB, InbPickCB, MenuCB, NumpadCB, PageCB, QuickPickCB
 from bot.middlewares.filters import IsAdmin
 from bot.states import (
     CreateClient,
@@ -112,6 +113,8 @@ def render_client(
     ]
     if c.total_gb > 0:
         lines.append(t("card_progress", lang, v=progress_bar(c.up + c.down, c.total_gb)))
+    if c.comment:
+        lines.append(t("card_comment", lang, v=esc(c.comment)))
     lines += ["", t("refreshed_on", lang, v=refresh_ts)]
     return "\n".join(lines)
 
@@ -897,6 +900,82 @@ async def set_ip_limit_value(message: Message, state: FSMContext, api: XUIClient
         )
     else:
         await message.answer(t("updated_ok", lang), reply_markup=back_home(lang))
+
+
+# --------------------------------------------------------------------------- #
+# Inline numpad — custom number entry without FSM text input
+# --------------------------------------------------------------------------- #
+
+def _numpad_unit(field: str, lang: str) -> str:
+    if field == "quota":
+        return t("numpad_unit_gb", lang)
+    if field in ("extend", "expiry"):
+        return t("numpad_unit_days", lang)
+    if field == "iplimit":
+        return t("numpad_unit_ips", lang)
+    return ""
+
+
+@router.callback_query(NumpadCB.filter())
+async def cb_numpad(
+    query: CallbackQuery,
+    callback_data: NumpadCB,
+    api: XUIClient,
+    lang: str = "en",
+    tz: ZoneInfo | None = None,
+) -> None:
+    field = callback_data.field
+    email = callback_data.email
+    old_val = callback_data.val
+    digit = callback_data.digit
+
+    if digit == 100:  # confirm
+        await _numpad_apply(query, api, field, email, old_val, lang, tz)
+        return
+
+    if digit == -2:  # reset / initial show
+        new_val = 0
+    elif digit == -1:  # backspace
+        new_val = old_val // 10
+    else:  # digit 0-9
+        new_val = min(old_val * 10 + digit, 999_999)
+
+    unit = _numpad_unit(field, lang)
+    await query.message.edit_reply_markup(reply_markup=numpad_kb(field, email, new_val, unit, lang))
+    await query.answer()
+
+
+async def _numpad_apply(
+    query: CallbackQuery,
+    api: XUIClient,
+    field: str,
+    email: str,
+    val: int,
+    lang: str,
+    tz: ZoneInfo | None,
+) -> None:
+    client = await api.get_client(email)
+    if client is None:
+        await query.message.edit_text(t("client_not_found", lang, email=esc(email)), reply_markup=back_home(lang))
+        await query.answer()
+        return
+    try:
+        if field == "quota":
+            total_bytes = int(val * (1024 ** 3))
+            await api.update_client(email, client.to_update_payload(totalGB=total_bytes))
+        elif field == "expiry":
+            expiry_ms = 0 if val == 0 else int((time.time() + val * 86400) * 1000)
+            await api.update_client(email, client.to_update_payload(expiryTime=expiry_ms))
+        elif field == "extend":
+            await _apply_extend(api, client, val)
+        elif field == "iplimit":
+            await api.update_client(email, client.to_update_payload(limitIp=val))
+    except XUIError as exc:
+        await query.message.edit_text(f"⚠️ {esc(str(exc))}", reply_markup=back_home(lang))
+        await query.answer()
+        return
+    await query.answer("✅")
+    await show_card(query, api, email, lang, tz)
 
 
 # --------------------------------------------------------------------------- #

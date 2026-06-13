@@ -80,6 +80,9 @@ async def main() -> None:
                 BotCommand(command="start", description="Open the menu"),
                 BotCommand(command="cancel", description="Cancel current action"),
                 BotCommand(command="timezone", description="Set your timezone"),
+                BotCommand(command="id", description="Show your Telegram ID"),
+                BotCommand(command="usage", description="Show your account usage"),
+                BotCommand(command="find", description="Find a client by email (admin)"),
             ],
             scope=BotCommandScopeAllPrivateChats(),
         )
@@ -95,7 +98,7 @@ async def main() -> None:
 
 if __name__ == "__main__":
     try:
-        import uvloop  # type: ignore[import]
+        import uvloop  # type: ignore
         asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
         logger.info("Using uvloop")
     except ImportError:

@@ -80,3 +80,50 @@ async def send_report(bot: Bot, api: XUIClient, settings: Settings) -> None:
             await bot.send_message(uid, text)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Could not send report to %s: %s", uid, exc)
+
+    await _notify_exhausted(bot, clients)
+
+
+async def _notify_exhausted(bot: Bot, clients: list) -> None:
+    """Send DM notifications to clients with a Telegram ID whose account is near depletion."""
+    from bot.utils.formatting import human_bytes
+    now_ms = int(time.time() * 1000)
+    threshold_ms = now_ms + _DEPLETE_THRESHOLD_DAYS * 86400 * 1000
+    seen_tg_ids: set[int] = set()
+
+    for c in clients:
+        if not c.enable:
+            continue
+        raw_tg = c.tg_id
+        if not raw_tg:
+            continue
+        try:
+            tg_id = int(raw_tg)
+        except (ValueError, TypeError):
+            continue
+        if tg_id == 0:
+            continue
+
+        near_expiry = 0 < c.expiry_time <= threshold_ms
+        near_traffic = bool(c.total_gb and c.used >= _DEPLETE_TRAFFIC_RATIO * c.total_gb)
+        if not (near_expiry or near_traffic):
+            continue
+
+        if tg_id in seen_tg_ids:
+            continue
+        seen_tg_ids.add(tg_id)
+
+        db_user = await User.get_or_none(tg_id=tg_id)
+        lang = db_user.language if db_user else DEFAULT_LANG
+
+        parts: list[str] = [t("notify_depleting_title", lang, email=c.email)]
+        if near_traffic and c.total_gb:
+            parts.append(t("notify_depleting_traffic", lang, used=human_bytes(c.used), total=human_bytes(c.total_gb)))
+        if near_expiry:
+            days_left = max(0, int((c.expiry_time - now_ms) / (86400 * 1000)))
+            parts.append(t("notify_depleting_expiry", lang, days=days_left))
+
+        try:
+            await bot.send_message(tg_id, "\n".join(parts))
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Could not notify client tg_id=%s: %s", tg_id, exc)

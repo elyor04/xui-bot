@@ -1342,6 +1342,72 @@ _S: dict[str, dict[str, str]] = {
         "zh": "  …还有 {count} 个",
         "fa": "  …و {count} مورد دیگر",
     },
+    # ── Numpad ───────────────────────────────────────────────────────────────
+    "numpad_unit_gb": {
+        "en": "GB", "uz": "GB", "ru": "ГБ", "zh": "GB", "fa": "GB",
+    },
+    "numpad_unit_days": {
+        "en": "days", "uz": "kun", "ru": "дн", "zh": "天", "fa": "روز",
+    },
+    "numpad_unit_ips": {
+        "en": "IPs", "uz": "IP", "ru": "IP", "zh": "IP", "fa": "IP",
+    },
+    # ── Client card: comment ─────────────────────────────────────────────────
+    "card_comment": {
+        "en": "💬 Note: {v}", "uz": "💬 Izoh: {v}", "ru": "💬 Заметка: {v}",
+        "zh": "💬 备注：{v}", "fa": "💬 یادداشت: {v}",
+    },
+    # ── /id command ──────────────────────────────────────────────────────────
+    "cmd_id_response": {
+        "en": "🆔 Your Telegram ID: <code>{id}</code>",
+        "uz": "🆔 Sizning Telegram ID: <code>{id}</code>",
+        "ru": "🆔 Ваш Telegram ID: <code>{id}</code>",
+        "zh": "🆔 您的Telegram ID：<code>{id}</code>",
+        "fa": "🆔 شناسه تلگرام شما: <code>{id}</code>",
+    },
+    # ── Exhausted client notifications ───────────────────────────────────────
+    "notify_depleting_title": {
+        "en": "⚠️ <b>Account alert</b> · <code>{email}</code>",
+        "uz": "⚠️ <b>Hisob ogohlantirishi</b> · <code>{email}</code>",
+        "ru": "⚠️ <b>Уведомление об аккаунте</b> · <code>{email}</code>",
+        "zh": "⚠️ <b>账户提醒</b> · <code>{email}</code>",
+        "fa": "⚠️ <b>هشدار حساب</b> · <code>{email}</code>",
+    },
+    "notify_depleting_traffic": {
+        "en": "📊 Traffic nearly exhausted: {used} / {total}",
+        "uz": "📊 Trafik deyarli tugadi: {used} / {total}",
+        "ru": "📊 Трафик почти исчерпан: {used} / {total}",
+        "zh": "📊 流量即将耗尽：{used} / {total}",
+        "fa": "📊 ترافیک تقریباً تمام شده: {used} / {total}",
+    },
+    "notify_depleting_expiry": {
+        "en": "📅 Expires in <b>{days}</b> day(s).",
+        "uz": "📅 <b>{days}</b> kun(da) tugaydi.",
+        "ru": "📅 Истекает через <b>{days}</b> дн.",
+        "zh": "📅 将在 <b>{days}</b> 天内到期。",
+        "fa": "📅 در <b>{days}</b> روز منقضی می‌شود.",
+    },
+    # ── Server update ────────────────────────────────────────────────────────
+    "server_update_available": {
+        "en": "🔔 Update available: <b>v{version}</b>",
+        "uz": "🔔 Yangilanish mavjud: <b>v{version}</b>",
+        "ru": "🔔 Доступно обновление: <b>v{version}</b>",
+        "zh": "🔔 有可用更新：<b>v{version}</b>",
+        "fa": "🔔 به‌روزرسانی موجود است: <b>v{version}</b>",
+    },
+    # ── Admin buttons ────────────────────────────────────────────────────────
+    "btn_stop_xray": {
+        "en": "🛑 Stop Xray", "uz": "🛑 Xrayni to'xtatish", "ru": "🛑 Остановить Xray",
+        "zh": "🛑 停止 Xray", "fa": "🛑 توقف Xray",
+    },
+    "btn_deldepleted": {
+        "en": "🧹 Del. Depleted", "uz": "🧹 Tugaganlarni o'chirish", "ru": "🧹 Уд. истощённых",
+        "zh": "🧹 删除已耗尽", "fa": "🧹 حذف تمام‌شده‌ها",
+    },
+    "btn_yes_stop_xray": {
+        "en": "🛑 Yes, stop Xray", "uz": "🛑 Ha, Xrayni to'xtatish", "ru": "🛑 Да, остановить Xray",
+        "zh": "🛑 是的，停止 Xray", "fa": "🛑 بله، Xray را متوقف کن",
+    },
 }
 
 

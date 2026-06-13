@@ -249,10 +249,11 @@ class XUIClient:
             return None
 
         # Overlay aggregated traffic + lastOnline from the traffic endpoint.
+        # Use .get with a default so that a legitimately zero counter is preserved.
         if isinstance(traffic_obj, dict):
-            flat["up"] = traffic_obj.get("up") or flat.get("up") or 0
-            flat["down"] = traffic_obj.get("down") or flat.get("down") or 0
-            flat["lastOnline"] = traffic_obj.get("lastOnline") or flat.get("lastOnline") or 0
+            flat["up"] = traffic_obj.get("up", flat.get("up", 0))
+            flat["down"] = traffic_obj.get("down", flat.get("down", 0))
+            flat["lastOnline"] = traffic_obj.get("lastOnline", flat.get("lastOnline", 0))
 
         return Client(**flat)
 
@@ -280,7 +281,7 @@ class XUIClient:
         return await self._request("POST", f"/panel/api/clients/update/{email}", json=payload)
 
     async def delete_client(self, email: str, keep_traffic: bool = False) -> Any:
-        params = {"keepTraffic": "1"} if keep_traffic else None
+        params = {"keepTraffic": 1 if keep_traffic else 0}
         return await self._request(
             "POST", f"/panel/api/clients/del/{email}", params=params
         )
@@ -331,9 +332,12 @@ class XUIClient:
     async def reset_all_traffics(self) -> Any:
         return await self._request("POST", "/panel/api/clients/resetAllTraffics")
 
-    async def bulk_delete_clients(self, emails: list[str]) -> Any:
-        """DELETE /panel/api/clients/bulkDel — remove multiple clients at once."""
-        return await self._request("POST", "/panel/api/clients/bulkDel", json={"emails": emails})
+    async def bulk_delete_clients(self, emails: list[str], keep_traffic: bool = False) -> Any:
+        """POST /panel/api/clients/bulkDel — remove multiple clients at once."""
+        return await self._request(
+            "POST", "/panel/api/clients/bulkDel",
+            json={"emails": emails, "keepTraffic": keep_traffic},
+        )
 
     async def bulk_reset_traffic(self, emails: list[str]) -> Any:
         """POST /panel/api/clients/bulkResetTraffic — reset traffic for multiple clients."""

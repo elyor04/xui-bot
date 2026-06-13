@@ -54,3 +54,15 @@ class QuickPickCB(CallbackData, prefix="qp"):
 
 class LangCB(CallbackData, prefix="lang"):
     code: str  # "en" | "uz" | "ru" | "zh" | "fa"
+
+
+class NumpadCB(CallbackData, prefix="np"):
+    """Inline numpad for entering custom numbers (quota GB, days, IP count).
+
+    digit: 0-9 = append digit; -1 = backspace; -2 = reset/show; 100 = confirm
+    """
+
+    field: str   # "quota" | "extend" | "expiry" | "iplimit"
+    email: str
+    val: int     # current accumulated value (0..999999)
+    digit: int   # -2=reset, -1=backspace, 0-9=digit, 100=confirm

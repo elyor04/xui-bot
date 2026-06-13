@@ -12,6 +12,7 @@ from bot.keyboards.callbacks import (
     InbPickCB,
     LangCB,
     MenuCB,
+    NumpadCB,
     PageCB,
     PickModeCB,
     QuickPickCB,
@@ -243,7 +244,10 @@ def quick_days(email: str = "", field: str = "extend", lang: str = "en") -> Inli
         kb.button(text=f"{d}d", callback_data=QuickPickCB(field=field, value=d, email=email))
     unlimited_label = t("extend_remove_expiry_btn", lang) if field == "extend" else t("no_expiry_btn", lang)
     kb.button(text=unlimited_label, callback_data=QuickPickCB(field=field, value=0, email=email))
-    kb.button(text=t("btn_custom", lang), callback_data=QuickPickCB(field=field, value=-1, email=email))
+    if email:
+        kb.button(text=t("btn_custom", lang), callback_data=NumpadCB(field=field, email=email, val=0, digit=-2))
+    else:
+        kb.button(text=t("btn_custom", lang), callback_data=QuickPickCB(field=field, value=-1, email=email))
     kb.adjust(3, 3, 2)
     back_cb = ClientCB(action="view", email=email) if email else None
     kb.attach(_footer(lang, back_cb=back_cb))
@@ -257,7 +261,10 @@ def quick_quota(email: str = "", lang: str = "en") -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     for val, label in presets:
         kb.button(text=label, callback_data=QuickPickCB(field=field, value=val, email=email))
-    kb.button(text=t("btn_custom", lang), callback_data=QuickPickCB(field=field, value=-1, email=email))
+    if email:
+        kb.button(text=t("btn_custom", lang), callback_data=NumpadCB(field=field, email=email, val=0, digit=-2))
+    else:
+        kb.button(text=t("btn_custom", lang), callback_data=QuickPickCB(field=field, value=-1, email=email))
     kb.adjust(3, 3, 3)
     back_cb = ClientCB(action="view", email=email) if email else None
     kb.attach(_footer(lang, back_cb=back_cb))
@@ -269,8 +276,27 @@ def quick_iplimit(email: str = "", lang: str = "en") -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     for val, label in presets:
         kb.button(text=label, callback_data=QuickPickCB(field="iplimit", value=val, email=email))
-    kb.button(text=t("btn_custom", lang), callback_data=QuickPickCB(field="iplimit", value=-1, email=email))
+    if email:
+        kb.button(text=t("btn_custom", lang), callback_data=NumpadCB(field="iplimit", email=email, val=0, digit=-2))
+    else:
+        kb.button(text=t("btn_custom", lang), callback_data=QuickPickCB(field="iplimit", value=-1, email=email))
     kb.adjust(3, 3, 1)
     back_cb = ClientCB(action="view", email=email) if email else None
     kb.attach(_footer(lang, back_cb=back_cb))
+    return kb.as_markup()
+
+
+def numpad_kb(field: str, email: str, val: int, unit_label: str, lang: str = "en") -> InlineKeyboardMarkup:
+    """Inline numpad keyboard for entering a custom numeric value."""
+    kb = InlineKeyboardBuilder()
+    confirm_text = f"✅  {val} {unit_label}"
+    kb.button(text=confirm_text, callback_data=NumpadCB(field=field, email=email, val=val, digit=100))
+    for d in range(1, 10):
+        kb.button(text=str(d), callback_data=NumpadCB(field=field, email=email, val=val, digit=d))
+    kb.button(text="∞", callback_data=NumpadCB(field=field, email=email, val=0, digit=100))
+    kb.button(text="0", callback_data=NumpadCB(field=field, email=email, val=val, digit=0))
+    kb.button(text="⬅️", callback_data=NumpadCB(field=field, email=email, val=val, digit=-1))
+    kb.button(text="🔄", callback_data=NumpadCB(field=field, email=email, val=val, digit=-2))
+    kb.button(text=t("btn_cancel", lang), callback_data=ClientCB(action="view", email=email))
+    kb.adjust(1, 3, 3, 3, 3, 2)
     return kb.as_markup()

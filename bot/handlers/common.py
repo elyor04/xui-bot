@@ -152,6 +152,59 @@ async def cmd_help(message: Message, user: User, lang: str = "en") -> None:
     await message.answer(text)
 
 
+@router.message(Command("id"))
+async def cmd_id(message: Message, lang: str = "en") -> None:
+    await message.answer(t("cmd_id_response", lang, id=message.from_user.id))
+
+
+@router.message(Command("usage"))
+async def cmd_usage(message: Message, user: User, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
+    from bot.handlers.admin.clients import render_client, _fetch_render_extras
+    from bot.keyboards.admin import client_card
+
+    args = (message.text or "").split(maxsplit=1)
+    if user.is_admin and len(args) > 1:
+        email = args[1].strip()
+        try:
+            client = await api.get_client(email)
+        except Exception:
+            client = None
+        if client is None:
+            from bot.utils.formatting import esc
+            await message.answer(t("client_not_found", lang, email=esc(email)))
+            return
+        inbound_remarks, is_online, last_online_str = await _fetch_render_extras(api, client, tz)
+        await message.answer(
+            render_client(client, lang, tz=tz, inbound_remarks=inbound_remarks, is_online=is_online, last_online_str=last_online_str),
+            reply_markup=client_card(client, lang),
+        )
+        return
+
+    if not user.panel_email:
+        await message.answer(t("account_no_link", lang))
+        return
+
+    try:
+        client = await api.get_client(user.panel_email)
+    except Exception:
+        client = None
+    if client is None:
+        await message.answer(t("account_gone", lang))
+        return
+
+    from bot.handlers.client.account import render_account
+    from bot.keyboards.client import account_kb
+
+    inbound_remarks: list[str] | None = None
+    try:
+        options = await api.inbound_options()
+        remark_map = {o.id: (o.remark or o.protocol) for o in options}
+        inbound_remarks = [remark_map.get(i, f"#{i}") for i in client.inbound_ids] or None
+    except Exception:
+        pass
+    await message.answer(render_account(client, lang, inbound_remarks, tz), reply_markup=account_kb(lang))
+
+
 @router.message(Command("cancel"))
 async def cmd_cancel(message: Message, state: FSMContext, user: User, lang: str = "en") -> None:
     await state.clear()

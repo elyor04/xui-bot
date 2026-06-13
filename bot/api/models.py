@@ -44,6 +44,8 @@ class InboundOption(_Base):
     remark: str = ""
     protocol: str = ""
     port: int = 0
+    tag: str = ""
+    ss_method: str = Field(default="", alias="ssMethod")
     tls_flow_capable: bool = Field(default=False, alias="tlsFlowCapable")
 
 
@@ -66,11 +68,14 @@ class Inbound(_Base):
     remark: str = ""
     protocol: str = ""
     port: int = 0
+    listen: str = ""
+    tag: str = ""
     enable: bool = True
     up: int = 0
     down: int = 0
     total: int = 0
     expiry_time: int = Field(default=0, alias="expiryTime")
+    last_traffic_reset_time: int = Field(default=0, alias="lastTrafficResetTime")
     client_stats: list[ClientStat] = Field(default_factory=list, alias="clientStats")
     reset: int = 0
 
@@ -86,6 +91,11 @@ class Client(_Base):
     uuid: str | None = None          # VLESS/VMess UUID — the actual proxy identifier
     password: str | None = None      # Trojan / Shadowsocks
     flow: str | None = None
+    # security = per-client auth method (e.g. Shadowsocks cipher, VLESS "none"/"reality").
+    # Preserved across updates so the panel doesn't reset it.
+    security: str = ""
+    auth: str = ""
+    group: str = ""
     enable: bool = True
     total_gb: int = Field(default=0, alias="totalGB")   # quota in BYTES (0 = unlimited)
     expiry_time: int = Field(default=0, alias="expiryTime")  # unix ms (0 = unlimited)
@@ -104,14 +114,12 @@ class Client(_Base):
     @classmethod
     def _flatten_traffic(cls, data: Any) -> Any:
         # list_clients wraps traffic counters in a nested "traffic" object;
-        # extract them so up/down are always available at the top level.
+        # always prefer it — it's the aggregated total across all inbounds.
         if isinstance(data, dict):
             traffic = data.get("traffic")
             if isinstance(traffic, dict):
-                if not data.get("up"):
-                    data["up"] = traffic.get("up", 0)
-                if not data.get("down"):
-                    data["down"] = traffic.get("down", 0)
+                data["up"] = traffic.get("up", data.get("up", 0))
+                data["down"] = traffic.get("down", data.get("down", 0))
         return data
 
     @property
@@ -140,6 +148,9 @@ class Client(_Base):
             "id": client_id,
             "password": self.password or "",
             "flow": self.flow or "",
+            "security": self.security,
+            "auth": self.auth,
+            "group": self.group,
             "email": self.email,
             "limitIp": self.limit_ip,
             "totalGB": self.total_gb,
