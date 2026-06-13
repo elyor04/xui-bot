@@ -14,7 +14,7 @@ from bot.i18n import t
 from bot.keyboards.callbacks import MenuCB, PickClientCB
 from bot.keyboards.client import account_kb, client_home, client_menu, pick_client
 from bot.middlewares.filters import IsClient
-from bot.utils.formatting import compact_bytes, esc, fmt_expiry_card, fmt_quota_card, make_qr_png
+from bot.utils.formatting import compact_bytes, esc, fmt_expiry_card, fmt_quota_card, make_qr_png, progress_bar
 
 router = Router(name="client-account")
 router.message.filter(IsClient())
@@ -46,6 +46,8 @@ def render_account(
         t("acc_download", lang, v=compact_bytes(client.down)),
         t("acc_total", lang, used=compact_bytes(client.up + client.down), quota=quota_label),
     ]
+    if client.total_gb > 0:
+        lines.append(t("acc_progress", lang, v=progress_bar(client.up + client.down, client.total_gb)))
     if last_online_str:
         lines.append(t("acc_last_online", lang, v=last_online_str))
     lines += ["", t("refreshed_on", lang, v=refresh_ts)]
@@ -127,8 +129,8 @@ async def cb_me(query: CallbackQuery, user: User, api: XUIClient, lang: str = "e
 
     inbound_remarks: list[str] | None = None
     try:
-        inbounds = await api.list_inbounds()
-        remark_map = {ib.id: (ib.remark or ib.protocol) for ib in inbounds}
+        options = await api.inbound_options()
+        remark_map = {o.id: (o.remark or o.protocol) for o in options}
         remarks = [remark_map.get(i, f"#{i}") for i in client.inbound_ids]
         inbound_remarks = remarks or None
     except Exception:

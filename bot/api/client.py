@@ -1,4 +1,4 @@
-"""Async client for the 3x-ui panel API, built on aiohttp.
+"""Async client for the 3x-ui panel API (≥ 3.2.8), built on aiohttp.
 
 Authentication:
   * If ``xui_api_token`` is set, every request carries an
@@ -230,9 +230,14 @@ class XUIClient:
         return matched
 
     async def get_client(self, email: str) -> Client | None:
-        try:
-            obj = await self._request("GET", f"/panel/api/clients/get/{email}")
-        except XUIRequestError:
+        # Fetch client row and traffic stats concurrently.
+        results = await asyncio.gather(
+            self._request("GET", f"/panel/api/clients/get/{email}"),
+            self._request("GET", f"/panel/api/clients/traffic/{email}"),
+            return_exceptions=True,
+        )
+        obj, traffic_obj = results
+        if isinstance(obj, BaseException):
             return None
         if not obj:
             return None
@@ -243,16 +248,11 @@ class XUIClient:
         else:
             return None
 
-        # Enrich with aggregated traffic counters + lastOnline from the
-        # traffic endpoint (up/down/lastOnline across all inbounds).
-        try:
-            traffic = await self.client_traffic(email)
-            if traffic:
-                flat["up"] = traffic.get("up") or 0
-                flat["down"] = traffic.get("down") or 0
-                flat["lastOnline"] = traffic.get("lastOnline") or 0
-        except Exception:
-            pass
+        # Overlay aggregated traffic + lastOnline from the traffic endpoint.
+        if isinstance(traffic_obj, dict):
+            flat["up"] = traffic_obj.get("up") or flat.get("up") or 0
+            flat["down"] = traffic_obj.get("down") or flat.get("down") or 0
+            flat["lastOnline"] = traffic_obj.get("lastOnline") or flat.get("lastOnline") or 0
 
         return Client(**flat)
 
@@ -263,6 +263,14 @@ class XUIClient:
         except XUIRequestError:
             return None
         return obj if isinstance(obj, dict) else None
+
+    async def last_online_map(self) -> dict[str, int]:
+        """POST /panel/api/clients/lastOnline — email → last-seen unix-ms map for all clients."""
+        try:
+            obj = await self._request("POST", "/panel/api/clients/lastOnline")
+        except XUIRequestError:
+            return {}
+        return obj if isinstance(obj, dict) else {}
 
     async def add_client(self, payload: dict[str, Any], inbound_ids: list[int]) -> Any:
         body = {"client": payload, "inboundIds": inbound_ids}
@@ -312,6 +320,14 @@ class XUIClient:
     async def delete_depleted(self) -> Any:
         return await self._request("POST", "/panel/api/clients/delDepleted")
 
+    async def bulk_create_clients(self, items: list[dict[str, Any]]) -> Any:
+        """POST /panel/api/clients/bulkCreate — create many clients in one call.
+
+        ``items`` is a list of ``{client: <payload>, inboundIds: [...]}`` dicts,
+        the same shape accepted by :meth:`add_client`.
+        """
+        return await self._request("POST", "/panel/api/clients/bulkCreate", json=items)
+
     async def reset_all_traffics(self) -> Any:
         return await self._request("POST", "/panel/api/clients/resetAllTraffics")
 
@@ -350,6 +366,18 @@ class XUIClient:
 
     async def restart_xray(self) -> Any:
         return await self._request("POST", "/panel/api/server/restartXrayService")
+
+    async def stop_xray(self) -> Any:
+        """POST /panel/api/server/stopXrayService — stop the Xray binary immediately."""
+        return await self._request("POST", "/panel/api/server/stopXrayService")
+
+    async def panel_update_info(self) -> dict[str, Any]:
+        """GET /panel/api/server/getPanelUpdateInfo — check for a newer panel release."""
+        try:
+            obj = await self._request("GET", "/panel/api/server/getPanelUpdateInfo")
+        except Exception:
+            return {}
+        return obj if isinstance(obj, dict) else {}
 
     async def backup_to_telegram(self) -> Any:
         return await self._request("POST", "/panel/api/backuptotgbot")

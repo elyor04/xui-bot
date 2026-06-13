@@ -1,6 +1,7 @@
 """Admin menu actions: server status, online list, inbounds, backup, cleanup, and more."""
 from __future__ import annotations
 
+import asyncio
 import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -10,10 +11,25 @@ from aiogram.types import CallbackQuery
 
 from bot.api import XUIClient, XUIError
 from bot.i18n import t
-from bot.keyboards.admin import back_home, back_home_refresh, confirm_reset_all, online_clients_list
+from bot.keyboards.admin import (
+    back_home,
+    back_home_refresh,
+    confirm_reset_all,
+    confirm_stop_xray,
+    online_clients_list,
+)
 from bot.keyboards.callbacks import ConfirmCB, MenuCB
 from bot.middlewares.filters import IsAdmin
-from bot.utils.formatting import compact_bytes, esc, fmt_expiry, fmt_expiry_card, fmt_quota, fmt_uptime_days, human_bytes
+from bot.utils.formatting import (
+    compact_bytes,
+    esc,
+    fmt_expiry,
+    fmt_expiry_card,
+    fmt_quota,
+    fmt_uptime_days,
+    human_bytes,
+    progress_bar,
+)
 
 router = Router(name="admin-menu")
 router.callback_query.filter(IsAdmin())
@@ -25,17 +41,22 @@ _EXPIRY_WARN_DAYS   = 7
 @router.callback_query(MenuCB.filter(F.action == "server"))
 async def cb_server(query: CallbackQuery, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
     await query.answer(t("loading", lang))
-    try:
-        st = await api.server_status()
-    except XUIError as exc:
-        await query.message.edit_text(f"⚠️ {esc(str(exc))}", reply_markup=back_home(lang))
+
+    results = await asyncio.gather(
+        api.server_status(),
+        api.online_clients(),
+        api.panel_update_info(),
+        return_exceptions=True,
+    )
+    st_result, online_result, update_result = results
+
+    if isinstance(st_result, BaseException):
+        await query.message.edit_text(f"⚠️ {esc(str(st_result))}", reply_markup=back_home(lang))
         return
 
-    online_count: int | str = "?"
-    try:
-        online_count = len(await api.online_clients())
-    except Exception:
-        pass
+    st = st_result
+    online_count: int | str = len(online_result) if isinstance(online_result, list) else "?"
+    update_info: dict = update_result if isinstance(update_result, dict) else {}
 
     mem = st.mem or {}
     xray = st.xray or {}
@@ -89,9 +110,11 @@ async def cb_server(query: CallbackQuery, api: XUIClient, lang: str = "en", tz: 
         t("server_udp", lang, v=st.udpCount),
         t("server_traffic", lang, total=compact_bytes(xray_total), up=compact_bytes(xray_up), down=compact_bytes(xray_down)),
         t("server_status_line", lang, v=xray_state),
-        "",
-        t("refreshed_on", lang, v=refresh_ts),
     ]
+    if update_info.get("updateAvailable"):
+        latest = esc(str(update_info.get("latestVersion", "?")))
+        lines.append(t("server_update_available", lang, version=latest))
+    lines += ["", t("refreshed_on", lang, v=refresh_ts)]
     await query.message.edit_text("\n".join(lines), reply_markup=back_home_refresh(MenuCB(action="server"), lang))
 
 
@@ -220,8 +243,16 @@ async def cb_deplete_soon(query: CallbackQuery, api: XUIClient, lang: str = "en"
                 exp = fmt_expiry(cs.expiry_time, tz)
                 quota = fmt_quota(cs.total)
                 used = human_bytes(cs.used)
+                bar = f" {progress_bar(cs.used, cs.total, 8)}" if cs.total else ""
+                last_seen = ""
+                if cs.last_online > 0:
+                    try:
+                        from datetime import datetime as _dt
+                        last_seen = f" · seen {_dt.fromtimestamp(cs.last_online / 1000, tz=tz):%Y-%m-%d}"
+                    except Exception:
+                        pass
                 warn_clients.append(
-                    f"👤 <code>{esc(cs.email)}</code> — {used}/{quota} · exp {exp}"
+                    f"👤 <code>{esc(cs.email)}</code> — {used}/{quota}{bar} · exp {exp}{last_seen}"
                 )
 
     lines: list[str] = [
@@ -277,9 +308,10 @@ async def cb_sorted_report(query: CallbackQuery, api: XUIClient, lang: str = "en
         status = "🟢" if c.enable else "🔴"
         quota = fmt_quota(c.total_gb)
         exp = fmt_expiry(c.expiry_time, tz)
+        bar = f" {progress_bar(c.used, c.total_gb, 8)}" if c.total_gb else ""
         lines.append(
             f"{i}. {status} <code>{esc(c.email)}</code>\n"
-            f"   {human_bytes(c.used)} / {quota} · exp {exp}"
+            f"   {human_bytes(c.used)} / {quota}{bar} · exp {exp}"
         )
     if len(clients_sorted) > 50:
         lines.append(t("sorted_more", lang, count=len(clients_sorted) - 50))
@@ -300,6 +332,23 @@ async def cb_restart(query: CallbackQuery, api: XUIClient, lang: str = "en") -> 
     try:
         await api.restart_xray()
         text = t("restart_done", lang)
+    except XUIError as exc:
+        text = f"⚠️ {esc(str(exc))}"
+    await query.message.edit_text(text, reply_markup=back_home(lang))
+
+
+@router.callback_query(MenuCB.filter(F.action == "stop_xray"))
+async def cb_stop_xray(query: CallbackQuery, lang: str = "en") -> None:
+    await query.message.edit_text(t("stop_xray_confirm", lang), reply_markup=confirm_stop_xray(lang))
+    await query.answer()
+
+
+@router.callback_query(ConfirmCB.filter((F.action == "yes") & (F.scope == "stop_xray")))
+async def cb_stop_xray_confirm(query: CallbackQuery, api: XUIClient, lang: str = "en") -> None:
+    await query.answer(t("stop_xray_stopping", lang))
+    try:
+        await api.stop_xray()
+        text = t("stop_xray_stopped", lang)
     except XUIError as exc:
         text = f"⚠️ {esc(str(exc))}"
     await query.message.edit_text(text, reply_markup=back_home(lang))

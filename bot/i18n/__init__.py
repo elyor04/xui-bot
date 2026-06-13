@@ -239,6 +239,14 @@ _S: dict[str, dict[str, str]] = {
         "en": "⚡ Restart Xray", "uz": "⚡ Xrayni qayta ishga tushirish",
         "ru": "⚡ Перезапустить Xray", "zh": "⚡ 重启 Xray", "fa": "⚡ راه‌اندازی مجدد Xray",
     },
+    "btn_stop_xray": {
+        "en": "🛑 Stop Xray", "uz": "🛑 Xrayni to'xtatish",
+        "ru": "🛑 Остановить Xray", "zh": "🛑 停止 Xray", "fa": "🛑 توقف Xray",
+    },
+    "btn_deldepleted": {
+        "en": "🧹 Del. Depleted", "uz": "🧹 Tugaganlarni o'chirish",
+        "ru": "🧹 Уд. истощённых", "zh": "🧹 删除已耗尽", "fa": "🧹 حذف تمام‌شده‌ها",
+    },
     "btn_inbounds": {
         "en": "📦 Inbounds", "uz": "📦 Inboundlar", "ru": "📦 Входящие",
         "zh": "📦 入站", "fa": "📦 اینباندها",
@@ -374,6 +382,10 @@ _S: dict[str, dict[str, str]] = {
         "en": "✅ Yes, reset all", "uz": "✅ Ha, barchasini tiklash", "ru": "✅ Да, сбросить всё",
         "zh": "✅ 是，全部重置", "fa": "✅ بله، همه را بازنشانی کن",
     },
+    "btn_yes_stop_xray": {
+        "en": "🛑 Yes, stop Xray", "uz": "🛑 Ha, Xrayni to'xtatish",
+        "ru": "🛑 Да, остановить Xray", "zh": "🛑 是，停止 Xray", "fa": "🛑 بله، توقف Xray",
+    },
     # ── Server status ────────────────────────────────────────────────────────
     "server_xray_version": {
         "en": "📡 Xray Version: {v}", "uz": "📡 Xray Versiya: {v}", "ru": "📡 Версия Xray: {v}",
@@ -419,6 +431,11 @@ _S: dict[str, dict[str, str]] = {
     "server_status_line": {
         "en": "ℹ️ Status: {v}", "uz": "ℹ️ Holat: {v}", "ru": "ℹ️ Состояние: {v}",
         "zh": "ℹ️ 状态：{v}", "fa": "ℹ️ وضعیت: {v}",
+    },
+    "server_update_available": {
+        "en": "🔔 Update available: v{version}", "uz": "🔔 Yangilanish mavjud: v{version}",
+        "ru": "🔔 Доступно обновление: v{version}", "zh": "🔔 有更新可用：v{version}",
+        "fa": "🔔 بروزرسانی موجود است: v{version}",
     },
     "refreshed_on": {
         "en": "📋🔄 Refreshed On: {v}", "uz": "📋🔄 Yangilangan: {v}", "ru": "📋🔄 Обновлено: {v}",
@@ -647,6 +664,45 @@ _S: dict[str, dict[str, str]] = {
         "zh": "⚡ Xray服务已成功重启。",
         "fa": "⚡ سرویس Xray با موفقیت راه‌اندازی مجدد شد.",
     },
+    # ── Stop Xray ─────────────────────────────────────────────────────────────
+    "stop_xray_confirm": {
+        "en": (
+            "🛑 <b>Stop Xray service?</b>\n\n"
+            "All active connections will be dropped immediately. "
+            "You can restart Xray from the menu afterwards."
+        ),
+        "uz": (
+            "🛑 <b>Xray xizmatini to'xtatish?</b>\n\n"
+            "Barcha faol ulanishlar darhol uziladi. "
+            "Keyin menyudan Xrayni qayta ishga tushirishingiz mumkin."
+        ),
+        "ru": (
+            "🛑 <b>Остановить Xray?</b>\n\n"
+            "Все активные соединения будут немедленно сброшены. "
+            "Перезапустить Xray можно из меню."
+        ),
+        "zh": (
+            "🛑 <b>停止Xray服务？</b>\n\n"
+            "所有活跃连接将立即断开。"
+            "之后可以从菜单重启Xray。"
+        ),
+        "fa": (
+            "🛑 <b>توقف سرویس Xray؟</b>\n\n"
+            "تمام اتصالات فعال بلافاصله قطع می‌شوند. "
+            "بعداً می‌توانید Xray را از منو راه‌اندازی مجدد کنید."
+        ),
+    },
+    "stop_xray_stopping": {
+        "en": "Stopping Xray…", "uz": "Xray to'xtatilmoqda…",
+        "ru": "Остановка Xray…", "zh": "正在停止Xray…", "fa": "در حال توقف Xray…",
+    },
+    "stop_xray_stopped": {
+        "en": "🛑 Xray service stopped.",
+        "uz": "🛑 Xray xizmati to'xtatildi.",
+        "ru": "🛑 Сервис Xray остановлен.",
+        "zh": "🛑 Xray服务已停止。",
+        "fa": "🛑 سرویس Xray متوقف شد.",
+    },
     # ── Client list ──────────────────────────────────────────────────────────
     "clients_filter_prompt": {
         "en": "👥 <b>Clients</b> — pick an inbound to filter, or view all:",
@@ -707,6 +763,10 @@ _S: dict[str, dict[str, str]] = {
         "en": "📊 Total: ↑↓{used} / {quota}", "uz": "📊 Jami: ↑↓{used} / {quota}",
         "ru": "📊 Итого: ↑↓{used} / {quota}", "zh": "📊 总计：↑↓{used} / {quota}",
         "fa": "📊 مجموع: ↑↓{used} / {quota}",
+    },
+    "card_progress": {
+        "en": "📶 Usage: {v}", "uz": "📶 Foydalanish: {v}", "ru": "📶 Использование: {v}",
+        "zh": "📶 用量：{v}", "fa": "📶 مصرف: {v}",
     },
     "mark_yes": {
         "en": "✅ Yes", "uz": "✅ Ha", "ru": "✅ Да", "zh": "✅ 是", "fa": "✅ بله",
@@ -1228,6 +1288,10 @@ _S: dict[str, dict[str, str]] = {
         "en": "📊 Total: ↑↓{used} / {quota}", "uz": "📊 Jami: ↑↓{used} / {quota}",
         "ru": "📊 Итого: ↑↓{used} / {quota}", "zh": "📊 总计：↑↓{used} / {quota}",
         "fa": "📊 مجموع: ↑↓{used} / {quota}",
+    },
+    "acc_progress": {
+        "en": "📶 Usage: {v}", "uz": "📶 Foydalanish: {v}", "ru": "📶 Использование: {v}",
+        "zh": "📶 用量：{v}", "fa": "📶 مصرف: {v}",
     },
     "acc_last_online": {
         "en": "🔙 Last online: {v}", "uz": "🔙 Oxirgi online: {v}", "ru": "🔙 Последний раз онлайн: {v}",

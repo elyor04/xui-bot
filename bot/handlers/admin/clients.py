@@ -1,6 +1,7 @@
 """Admin client management: list, view, create, extend, delete, reset, links, QR, quota."""
 from __future__ import annotations
 
+import asyncio
 import math
 import time
 from datetime import datetime
@@ -58,6 +59,7 @@ from bot.utils.formatting import (
     fmt_ips,
     fmt_quota_card,
     make_qr_png,
+    progress_bar,
 )
 
 router = Router(name="admin-clients")
@@ -107,33 +109,35 @@ def render_client(
         t("card_upload", lang, v=compact_bytes(c.up)),
         t("card_download", lang, v=compact_bytes(c.down)),
         t("card_total", lang, used=compact_bytes(c.up + c.down), quota=quota_label),
-        "",
-        t("refreshed_on", lang, v=refresh_ts),
     ]
+    if c.total_gb > 0:
+        lines.append(t("card_progress", lang, v=progress_bar(c.up + c.down, c.total_gb)))
+    lines += ["", t("refreshed_on", lang, v=refresh_ts)]
     return "\n".join(lines)
 
 
 async def _fetch_render_extras(
     api: XUIClient, client: Client, tz: ZoneInfo | None = None
 ) -> tuple[list[str] | None, bool | None, str | None]:
-    inbound_remarks: list[str] | None = None
-    is_online: bool | None = None
+    async def _get_remarks() -> list[str] | None:
+        try:
+            options = await api.inbound_options()
+            remark_map = {o.id: (o.remark or o.protocol) for o in options}
+            remarks = [remark_map.get(i, f"#{i}") for i in client.inbound_ids]
+            return remarks or None
+        except Exception:
+            return None
+
+    async def _get_is_online() -> bool | None:
+        try:
+            online = await api.online_clients()
+            return client.email in online
+        except Exception:
+            return None
+
+    inbound_remarks, is_online = await asyncio.gather(_get_remarks(), _get_is_online())
+
     last_online_str: str | None = None
-
-    try:
-        options = await api.inbound_options()
-        remark_map = {o.id: (o.remark or o.protocol) for o in options}
-        remarks = [remark_map.get(i, f"#{i}") for i in client.inbound_ids]
-        inbound_remarks = remarks or None
-    except Exception:
-        pass
-
-    try:
-        online = await api.online_clients()
-        is_online = client.email in online
-    except Exception:
-        pass
-
     if client.last_online > 0:
         try:
             dt = datetime.fromtimestamp(client.last_online / 1000, tz=tz)

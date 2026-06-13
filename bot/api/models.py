@@ -54,6 +54,7 @@ class ClientStat(_Base):
     down: int = 0
     total: int = 0
     expiry_time: int = Field(default=0, alias="expiryTime")
+    last_online: int = Field(default=0, alias="lastOnline")  # populated in 3.3.1+
 
     @property
     def used(self) -> int:

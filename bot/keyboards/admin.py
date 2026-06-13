@@ -43,13 +43,15 @@ def admin_menu(switch: bool = False, lang: str = "en") -> InlineKeyboardMarkup:
     kb.button(text=t("btn_reset_all", lang), callback_data=MenuCB(action="reset_all"))
     kb.button(text=t("btn_backup", lang), callback_data=MenuCB(action="backup"))
     kb.button(text=t("btn_restart_xray", lang), callback_data=MenuCB(action="restart"))
+    kb.button(text=t("btn_stop_xray", lang), callback_data=MenuCB(action="stop_xray"))
+    kb.button(text=t("btn_deldepleted", lang), callback_data=MenuCB(action="deldepleted"))
     kb.button(text=t("btn_inbounds", lang), callback_data=MenuCB(action="inbounds"))
     kb.button(text=t("btn_deplete_soon", lang), callback_data=MenuCB(action="deplete_soon"))
     kb.button(text=t("btn_commands", lang), callback_data=MenuCB(action="commands"))
     kb.button(text=t("btn_online", lang), callback_data=MenuCB(action="online"))
     kb.button(text=t("btn_clients", lang), callback_data=MenuCB(action="clients"))
     kb.button(text=t("btn_create_client", lang), callback_data=MenuCB(action="create"))
-    kb.adjust(1, 2, 2, 2, 2, 2)
+    kb.adjust(1, 2, 2, 2, 2, 2, 2)
     extras = InlineKeyboardBuilder()
     extras.button(text=t("btn_language", lang), callback_data=MenuCB(action="language"))
     if switch:
@@ -212,6 +214,16 @@ def confirm_reset_all(lang: str = "en") -> InlineKeyboardMarkup:
     kb = InlineKeyboardBuilder()
     kb.button(
         text=t("btn_yes_reset_all", lang), callback_data=ConfirmCB(action="yes", scope="reset_all")
+    )
+    kb.button(text=t("btn_cancel", lang), callback_data=MenuCB(action="home"))
+    kb.adjust(2)
+    return kb.as_markup()
+
+
+def confirm_stop_xray(lang: str = "en") -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(
+        text=t("btn_yes_stop_xray", lang), callback_data=ConfirmCB(action="yes", scope="stop_xray")
     )
     kb.button(text=t("btn_cancel", lang), callback_data=MenuCB(action="home"))
     kb.adjust(2)
