@@ -620,6 +620,8 @@ _S: dict[str, dict[str, str]] = {
             "📋 <b>Admin commands</b>\n\n"
             "/start — open the main menu\n"
             "/find &lt;email&gt; — jump to a client by email\n"
+            "/restart — restart Xray\n"
+            "/logs [n] — view last N Xray log lines (default 50)\n"
             "/cancel — abort the current multi-step action\n\n"
             "Everything else is driven by the inline buttons."
         ),
@@ -627,6 +629,8 @@ _S: dict[str, dict[str, str]] = {
             "📋 <b>Admin buyruqlari</b>\n\n"
             "/start — asosiy menyuni ochish\n"
             "/find &lt;email&gt; — email bo'yicha mijozga o'tish\n"
+            "/restart — Xrayni qayta ishga tushirish\n"
+            "/logs [n] — oxirgi N ta Xray log satrini ko'rsatish (standart 50)\n"
             "/cancel — joriy amalni bekor qilish\n\n"
             "Qolganlar inline tugmalar orqali boshqariladi."
         ),
@@ -634,6 +638,8 @@ _S: dict[str, dict[str, str]] = {
             "📋 <b>Команды администратора</b>\n\n"
             "/start — открыть главное меню\n"
             "/find &lt;email&gt; — перейти к клиенту по email\n"
+            "/restart — перезапустить Xray\n"
+            "/logs [n] — последние N строк логов Xray (по умолчанию 50)\n"
             "/cancel — прервать текущее действие\n\n"
             "Всё остальное управляется кнопками."
         ),
@@ -641,6 +647,8 @@ _S: dict[str, dict[str, str]] = {
             "📋 <b>管理员命令</b>\n\n"
             "/start — 打开主菜单\n"
             "/find &lt;email&gt; — 通过邮件直接跳转到客户端\n"
+            "/restart — 重启 Xray\n"
+            "/logs [n] — 查看最近 N 行 Xray 日志（默认50）\n"
             "/cancel — 中止当前操作\n\n"
             "其余功能通过内联按钮操作。"
         ),
@@ -648,6 +656,8 @@ _S: dict[str, dict[str, str]] = {
             "📋 <b>دستورات مدیر</b>\n\n"
             "/start — باز کردن منوی اصلی\n"
             "/find &lt;email&gt; — رفتن به کلاینت با ایمیل\n"
+            "/restart — راه‌اندازی مجدد Xray\n"
+            "/logs [n] — مشاهده N خط آخر لاگ Xray (پیش‌فرض ۵۰)\n"
             "/cancel — لغو عملیات جاری\n\n"
             "بقیه با دکمه‌های اینلاین مدیریت می‌شود."
         ),
