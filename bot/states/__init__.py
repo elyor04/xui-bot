@@ -9,6 +9,7 @@ class CreateClient(StatesGroup):
     email = State()
     quota = State()
     days = State()
+    comment = State()
     confirm = State()
 
 

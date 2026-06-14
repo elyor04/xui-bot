@@ -51,8 +51,9 @@ def admin_menu(switch: bool = False, lang: str = "en") -> InlineKeyboardMarkup:
     kb.button(text=t("btn_commands", lang), callback_data=MenuCB(action="commands"))
     kb.button(text=t("btn_online", lang), callback_data=MenuCB(action="online"))
     kb.button(text=t("btn_clients", lang), callback_data=MenuCB(action="clients"))
+    kb.button(text=t("btn_logs", lang), callback_data=MenuCB(action="logs"))
     kb.button(text=t("btn_create_client", lang), callback_data=MenuCB(action="create"))
-    kb.adjust(1, 2, 2, 2, 2, 2, 2)
+    kb.adjust(1, 2, 2, 2, 2, 2, 2, 1)
     extras = InlineKeyboardBuilder()
     extras.button(text=t("btn_language", lang), callback_data=MenuCB(action="language"))
     if switch:
@@ -136,10 +137,15 @@ def client_card(client: Client, lang: str = "en") -> InlineKeyboardMarkup:
     kb.button(text=t("btn_qr", lang), callback_data=ClientCB(action="qr", email=e))
     kb.button(text=t("btn_delete", lang), callback_data=ClientCB(action="del", email=e))
     kb.button(text=t("btn_set_tgid", lang), callback_data=ClientCB(action="set_tgid", email=e))
+    if client.tg_id:
+        kb.button(text=t("btn_clear_tgid", lang), callback_data=ClientCB(action="clear_tgid", email=e))
     kb.button(text=t("btn_back", lang), callback_data=MenuCB(action="clients"))
     kb.button(text=t("btn_refresh", lang), callback_data=ClientCB(action="refresh", email=e))
     kb.button(text=t("btn_menu", lang), callback_data=MenuCB(action="home"))
-    kb.adjust(2, 2, 2, 2, 3, 2, 3)
+    if client.tg_id:
+        kb.adjust(2, 2, 2, 2, 3, 3, 3)
+    else:
+        kb.adjust(2, 2, 2, 2, 3, 2, 3)
     return kb.as_markup()
 
 
@@ -235,7 +241,7 @@ def confirm_stop_xray(lang: str = "en") -> InlineKeyboardMarkup:
 # Quick-pick keyboards  (days / quota / IP-limit presets)
 # ---------------------------------------------------------------------------
 
-_DAY_PRESETS = [7, 14, 30, 90, 180, 365]
+_DAY_PRESETS = [7, 10, 14, 20, 30, 90, 180, 365]
 
 
 def quick_days(email: str = "", field: str = "extend", lang: str = "en") -> InlineKeyboardMarkup:
@@ -248,7 +254,7 @@ def quick_days(email: str = "", field: str = "extend", lang: str = "en") -> Inli
         kb.button(text=t("btn_custom", lang), callback_data=NumpadCB(field=field, email=email, val=0, digit=-2))
     else:
         kb.button(text=t("btn_custom", lang), callback_data=QuickPickCB(field=field, value=-1, email=email))
-    kb.adjust(3, 3, 2)
+    kb.adjust(4, 4, 2)
     back_cb = ClientCB(action="view", email=email) if email else None
     kb.attach(_footer(lang, back_cb=back_cb))
     return kb.as_markup()

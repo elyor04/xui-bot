@@ -290,7 +290,11 @@ async def cb_find(query: CallbackQuery, state: FSMContext, lang: str = "en", tz:
 
 
 @router.message(Command("find"))
-async def cmd_find(message: Message, state: FSMContext, lang: str = "en") -> None:
+async def cmd_find(message: Message, state: FSMContext, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None) -> None:
+    args = (message.text or "").split(maxsplit=1)
+    if len(args) > 1:
+        await _search_and_show(message, api, args[1].strip(), lang, tz)
+        return
     await state.set_state(FindClient.email)
     await message.answer(t("find_prompt", lang), reply_markup=find_prompt_kb(lang))
 
@@ -393,7 +397,10 @@ async def cb_sublinks(
     if client.sub_id and settings.sub_base_url:
         sub_url = settings.sub_base_url.rstrip("/") + "/" + client.sub_id
         parts.append(f"{t('sub_url_label', lang)}\n<code>{esc(sub_url)}</code>")
-    else:
+    if client.sub_id and settings.json_sub_base_url:
+        json_url = settings.json_sub_base_url.rstrip("/") + "/" + client.sub_id
+        parts.append(f"{t('json_sub_url_label', lang)}\n<code>{esc(json_url)}</code>")
+    if not parts:
         parts.append(t("no_sub_url", lang))
 
     await query.message.edit_text(
@@ -535,6 +542,23 @@ async def handle_tgid_text(
 
     await state.clear()
     await _apply_tgid(message, api, email, tg_id, lang)
+
+
+@router.callback_query(ClientCB.filter(F.action == "clear_tgid"))
+async def cb_clear_tgid(
+    query: CallbackQuery, callback_data: ClientCB, api: XUIClient, lang: str = "en", tz: ZoneInfo | None = None
+) -> None:
+    client = await api.get_client(callback_data.email)
+    if client is None:
+        await query.answer(t("not_found_alert", lang), show_alert=True)
+        return
+    try:
+        await api.update_client(client.email, client.to_update_payload(tgId=0))
+        await query.answer(t("tgid_cleared", lang, email=client.email))
+    except XUIError as exc:
+        await query.answer(str(exc)[:180], show_alert=True)
+        return
+    await show_card(query, api, callback_data.email, lang, tz)
 
 
 async def _apply_tgid(
@@ -1127,10 +1151,38 @@ async def create_days(message: Message, state: FSMContext, settings: Settings, l
     except ValueError:
         await message.answer(t("expiry_invalid", lang))
         return
-    data = await state.get_data()
     await state.update_data(days=days)
+    await state.set_state(CreateClient.comment)
+    await message.answer(t("create_comment_prompt", lang), reply_markup=_wiz_comment_kb(lang))
+
+
+def _wiz_comment_kb(lang: str = "en") -> InlineKeyboardMarkup:
+    kb = InlineKeyboardBuilder()
+    kb.button(text=t("btn_skip", lang), callback_data=QuickPickCB(field="wiz_comment", value=0, email=""))
+    kb.button(text=t("btn_menu", lang), callback_data=MenuCB(action="home"))
+    kb.adjust(2)
+    return kb.as_markup()
+
+
+@router.callback_query(CreateClient.comment, QuickPickCB.filter(F.field == "wiz_comment"))
+async def cb_wiz_comment_skip(
+    query: CallbackQuery, state: FSMContext, lang: str = "en", tz: ZoneInfo | None = None
+) -> None:
+    await state.update_data(comment="")
+    await _show_wizard_confirm(query, state, lang)
+    await query.answer()
+
+
+@router.message(CreateClient.comment, F.text)
+async def create_comment(
+    message: Message, state: FSMContext, lang: str = "en", tz: ZoneInfo | None = None
+) -> None:
+    await state.update_data(comment=message.text.strip())
+    data = await state.get_data()
     await state.set_state(CreateClient.confirm)
-    quota_label = "∞" if not data["quota"] else f"{data['quota']:g} GB"
+    quota = data.get("quota", 0)
+    quota_label = "∞" if not quota else f"{quota:g} GB"
+    days = data.get("days", 0)
     days_label = "∞" if not days else f"{days} days"
     inbounds = ", ".join(f"#{i}" for i in data["selected"])
     await message.answer(
@@ -1140,11 +1192,17 @@ async def create_days(message: Message, state: FSMContext, settings: Settings, l
 
 
 async def _finish_wizard(query: CallbackQuery, state: FSMContext, days: int, lang: str = "en", tz: ZoneInfo | None = None) -> None:
-    data = await state.get_data()
     await state.update_data(days=days)
+    await state.set_state(CreateClient.comment)
+    await query.message.edit_text(t("create_comment_prompt", lang), reply_markup=_wiz_comment_kb(lang))
+
+
+async def _show_wizard_confirm(query: CallbackQuery, state: FSMContext, lang: str = "en") -> None:
+    data = await state.get_data()
     await state.set_state(CreateClient.confirm)
     quota = data.get("quota", 0)
     quota_label = "∞" if not quota else f"{quota:g} GB"
+    days = data.get("days", 0)
     days_label = "∞" if not days else f"{days} days"
     inbounds = ", ".join(f"#{i}" for i in data["selected"])
     await query.message.edit_text(
@@ -1163,6 +1221,7 @@ async def create_confirm(query: CallbackQuery, state: FSMContext, api: XUIClient
         email=data["email"],
         quota_gb=data["quota"],
         days=data["days"],
+        comment=data.get("comment", ""),
     )
     try:
         await api.add_client(builder.to_payload(), [int(i) for i in data["selected"]])

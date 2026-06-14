@@ -156,9 +156,13 @@ async def cb_mylinks(query: CallbackQuery, user: User, api: XUIClient, settings:
 
     parts: list[str] = []
     client = await api.get_client(user.panel_email)
-    if client and client.sub_id and settings.sub_base_url:
-        sub = settings.sub_base_url.rstrip("/") + "/" + client.sub_id
-        parts.append(f"{t('my_sub_label', lang)}\n<code>{esc(sub)}</code>")
+    if client and client.sub_id:
+        if settings.sub_base_url:
+            sub = settings.sub_base_url.rstrip("/") + "/" + client.sub_id
+            parts.append(f"{t('my_sub_label', lang)}\n<code>{esc(sub)}</code>")
+        if settings.json_sub_base_url:
+            json_sub = settings.json_sub_base_url.rstrip("/") + "/" + client.sub_id
+            parts.append(f"{t('json_sub_url_label', lang)}\n<code>{esc(json_sub)}</code>")
     if links:
         parts.append("\n".join(f"<code>{esc(u)}</code>" for u in links))
     if not parts:

@@ -7,7 +7,8 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from aiogram import F, Router
-from aiogram.types import CallbackQuery
+from aiogram.filters import Command
+from aiogram.types import CallbackQuery, Message
 
 from bot.api import XUIClient, XUIError
 from bot.i18n import t
@@ -32,6 +33,7 @@ from bot.utils.formatting import (
 )
 
 router = Router(name="admin-menu")
+router.message.filter(IsAdmin())
 router.callback_query.filter(IsAdmin())
 
 _TRAFFIC_WARN_RATIO = 0.10
@@ -352,3 +354,48 @@ async def cb_stop_xray_confirm(query: CallbackQuery, api: XUIClient, lang: str =
     except XUIError as exc:
         text = f"⚠️ {esc(str(exc))}"
     await query.message.edit_text(text, reply_markup=back_home(lang))
+
+
+@router.message(Command("restart"))
+async def cmd_restart(message: Message, api: XUIClient, lang: str = "en") -> None:
+    try:
+        await api.restart_xray()
+        await message.answer(t("restart_done", lang))
+    except XUIError as exc:
+        await message.answer(f"⚠️ {esc(str(exc))}")
+
+
+@router.callback_query(MenuCB.filter(F.action == "logs"))
+async def cb_logs(query: CallbackQuery, api: XUIClient, lang: str = "en") -> None:
+    await query.answer(t("loading", lang))
+    logs = await api.xray_logs(50)
+    if not logs:
+        await query.message.edit_text(t("logs_empty", lang), reply_markup=back_home(lang))
+        return
+    header = t("logs_title", lang, count=len(logs))
+    body = "\n".join(logs)
+    text = f"{header}\n\n<code>{esc(body)}</code>"
+    if len(text) > 4000:
+        text = text[:4000] + "…</code>"
+    await query.message.edit_text(text, reply_markup=back_home_refresh(MenuCB(action="logs"), lang))
+
+
+@router.message(Command("logs"))
+async def cmd_logs(message: Message, api: XUIClient, lang: str = "en") -> None:
+    args = (message.text or "").split(maxsplit=1)
+    count = 50
+    if len(args) > 1:
+        try:
+            count = max(1, min(int(args[1].strip()), 200))
+        except ValueError:
+            pass
+    logs = await api.xray_logs(count)
+    if not logs:
+        await message.answer(t("logs_empty", lang))
+        return
+    header = t("logs_title", lang, count=len(logs))
+    body = "\n".join(logs)
+    text = f"{header}\n\n<code>{esc(body)}</code>"
+    if len(text) > 4000:
+        text = text[:4000] + "…</code>"
+    await message.answer(text)

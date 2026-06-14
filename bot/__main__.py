@@ -83,6 +83,8 @@ async def main() -> None:
                 BotCommand(command="id", description="Show your Telegram ID"),
                 BotCommand(command="usage", description="Show your account usage"),
                 BotCommand(command="find", description="Find a client by email (admin)"),
+                BotCommand(command="restart", description="Restart Xray (admin)"),
+                BotCommand(command="logs", description="View Xray logs [count] (admin)"),
             ],
             scope=BotCommandScopeAllPrivateChats(),
         )

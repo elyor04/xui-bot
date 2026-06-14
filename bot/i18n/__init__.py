@@ -384,7 +384,7 @@ _S: dict[str, dict[str, str]] = {
     },
     "btn_yes_stop_xray": {
         "en": "🛑 Yes, stop Xray", "uz": "🛑 Ha, Xrayni to'xtatish",
-        "ru": "🛑 Да, остановить Xray", "zh": "🛑 是，停止 Xray", "fa": "🛑 بله، توقف Xray",
+        "ru": "🛑 Да, остановить Xray", "zh": "🛑 是的，停止 Xray", "fa": "🛑 بله، Xray را متوقف کن",
     },
     # ── Server status ────────────────────────────────────────────────────────
     "server_xray_version": {
@@ -1395,18 +1395,47 @@ _S: dict[str, dict[str, str]] = {
         "zh": "🔔 有可用更新：<b>v{version}</b>",
         "fa": "🔔 به‌روزرسانی موجود است: <b>v{version}</b>",
     },
-    # ── Admin buttons ────────────────────────────────────────────────────────
-    "btn_stop_xray": {
-        "en": "🛑 Stop Xray", "uz": "🛑 Xrayni to'xtatish", "ru": "🛑 Остановить Xray",
-        "zh": "🛑 停止 Xray", "fa": "🛑 توقف Xray",
+    # ── New admin features ───────────────────────────────────────────────────
+    "btn_clear_tgid": {
+        "en": "🗑 Clear TG ID", "uz": "🗑 TG IDni tozalash", "ru": "🗑 Очистить TG ID",
+        "zh": "🗑 清除TG ID", "fa": "🗑 پاک کردن شناسه تلگرام",
     },
-    "btn_deldepleted": {
-        "en": "🧹 Del. Depleted", "uz": "🧹 Tugaganlarni o'chirish", "ru": "🧹 Уд. истощённых",
-        "zh": "🧹 删除已耗尽", "fa": "🧹 حذف تمام‌شده‌ها",
+    "tgid_cleared": {
+        "en": "✅ TG ID cleared for <code>{email}</code>.",
+        "uz": "✅ <code>{email}</code> uchun TG ID tozalandi.",
+        "ru": "✅ TG ID очищен для <code>{email}</code>.",
+        "zh": "✅ <code>{email}</code> 的TG ID已清除。",
+        "fa": "✅ شناسه تلگرام <code>{email}</code> پاک شد.",
     },
-    "btn_yes_stop_xray": {
-        "en": "🛑 Yes, stop Xray", "uz": "🛑 Ha, Xrayni to'xtatish", "ru": "🛑 Да, остановить Xray",
-        "zh": "🛑 是的，停止 Xray", "fa": "🛑 بله، Xray را متوقف کن",
+    "btn_logs": {
+        "en": "📜 Xray Logs", "uz": "📜 Xray Loglar", "ru": "📜 Логи Xray",
+        "zh": "📜 Xray日志", "fa": "📜 لاگ‌های Xray",
+    },
+    "logs_title": {
+        "en": "📜 <b>Xray Logs</b> (last {count} lines):",
+        "uz": "📜 <b>Xray Loglari</b> (oxirgi {count} ta satr):",
+        "ru": "📜 <b>Логи Xray</b> (последние {count} строк):",
+        "zh": "📜 <b>Xray日志</b>（最近 {count} 行）：",
+        "fa": "📜 <b>لاگ‌های Xray</b> ({count} خط آخر):",
+    },
+    "logs_empty": {
+        "en": "No logs available.", "uz": "Loglar mavjud emas.", "ru": "Нет доступных логов.",
+        "zh": "没有可用日志。", "fa": "هیچ لاگی موجود نیست.",
+    },
+    "create_comment_prompt": {
+        "en": "💬 Optional: enter a comment for this client, or skip:",
+        "uz": "💬 Ixtiyoriy: mijoz uchun izoh kiriting yoki o'tkazib yuboring:",
+        "ru": "💬 Необязательно: введите комментарий к клиенту или пропустите:",
+        "zh": "💬 可选：输入备注（或跳过）：",
+        "fa": "💬 اختیاری: یادداشتی برای این کلاینت وارد کنید یا رد شوید:",
+    },
+    "btn_skip": {
+        "en": "⏩ Skip", "uz": "⏩ O'tkazib yuborish", "ru": "⏩ Пропустить",
+        "zh": "⏩ 跳过", "fa": "⏩ رد شدن",
+    },
+    "json_sub_url_label": {
+        "en": "📋 JSON Sub URL:", "uz": "📋 JSON Sub URL:", "ru": "📋 JSON Sub URL:",
+        "zh": "📋 JSON订阅链接：", "fa": "📋 لینک اشتراک JSON:",
     },
 }
 

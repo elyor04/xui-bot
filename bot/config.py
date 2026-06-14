@@ -41,6 +41,8 @@ class Settings(BaseSettings):
 
     # Public subscription base, used to render links shown to clients.
     sub_base_url: str | None = None
+    # JSON subscription URL base (e.g. for clash/sing-box clients).
+    json_sub_base_url: str | None = None
 
     # Default inbound IDs to attach when an admin creates a client and the
     # quick-create flow is used. Empty -> admin must pick during the wizard.

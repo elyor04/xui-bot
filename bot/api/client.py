@@ -355,6 +355,10 @@ class XUIClient:
         """POST /panel/api/inbounds/:id/delAllClients — wipe every client from an inbound."""
         return await self._request("POST", f"/panel/api/inbounds/{inbound_id}/delAllClients")
 
+    async def reset_inbound_traffic(self, inbound_id: int) -> Any:
+        """POST /panel/api/inbounds/{id}/resetTraffic — reset traffic counters for an inbound."""
+        return await self._request("POST", f"/panel/api/inbounds/{inbound_id}/resetTraffic")
+
     # ================================================================== #
     # Server
     # ================================================================== #
@@ -385,6 +389,18 @@ class XUIClient:
 
     async def backup_to_telegram(self) -> Any:
         return await self._request("POST", "/panel/api/backuptotgbot")
+
+    async def xray_logs(self, count: int = 50) -> list[str]:
+        """GET /panel/api/server/xraylogs/{count} — fetch last N Xray log lines."""
+        try:
+            obj = await self._request("GET", f"/panel/api/server/xraylogs/{count}")
+        except Exception:
+            return []
+        if isinstance(obj, list):
+            return [str(line) for line in obj]
+        if isinstance(obj, str):
+            return obj.splitlines()
+        return []
 
 
 async def _safe_json(resp: aiohttp.ClientResponse) -> Any:
