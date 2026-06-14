@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import ssl
+import time
 from typing import Any
 
 import aiohttp
@@ -33,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 _RETRY_ATTEMPTS = 3
 _RETRY_BACKOFF = 1.0  # seconds; doubled each attempt (1s, 2s)
+_CLIENTS_CACHE_TTL = 30.0  # seconds; only used by get_clients_by_tgid
 
 
 class XUIClient:
@@ -40,6 +42,7 @@ class XUIClient:
         self._s = settings
         self._session: aiohttp.ClientSession | None = None
         self._authed = False
+        self._clients_cache: tuple[float, list[Client]] | None = None
 
     # ------------------------------------------------------------------ #
     # Lifecycle
@@ -218,8 +221,19 @@ class XUIClient:
         return clients, filtered
 
     async def get_clients_by_tgid(self, tg_id: int) -> list[Client]:
-        """Return all panel clients whose tgId matches ``tg_id``."""
-        clients = await self.list_clients()
+        """Return all panel clients whose tgId matches ``tg_id``.
+
+        The panel API has no tgId filter endpoint, so a full client list is
+        fetched.  A 30-second cache avoids redundant scans when the same user
+        triggers this flow more than once in quick succession.
+        """
+        now = time.monotonic()
+        if self._clients_cache and now - self._clients_cache[0] < _CLIENTS_CACHE_TTL:
+            clients = self._clients_cache[1]
+        else:
+            clients = await self.list_clients()
+            self._clients_cache = (now, clients)
+
         matched = []
         for c in clients:
             try:
@@ -383,7 +397,8 @@ class XUIClient:
         """GET /panel/api/server/getPanelUpdateInfo — check for a newer panel release."""
         try:
             obj = await self._request("GET", "/panel/api/server/getPanelUpdateInfo")
-        except Exception:
+        except Exception as exc:
+            logger.warning("panel_update_info failed: %s", exc)
             return {}
         return obj if isinstance(obj, dict) else {}
 
@@ -394,7 +409,8 @@ class XUIClient:
         """GET /panel/api/server/xraylogs/{count} — fetch last N Xray log lines."""
         try:
             obj = await self._request("GET", f"/panel/api/server/xraylogs/{count}")
-        except Exception:
+        except Exception as exc:
+            logger.warning("xray_logs failed: %s", exc)
             return []
         if isinstance(obj, list):
             return [str(line) for line in obj]

@@ -1,10 +1,13 @@
 """Client (end-user) side: link to a panel account, view usage, get configs, QR codes."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from aiogram import F, Router
+
+logger = logging.getLogger(__name__)
 from aiogram.types import BufferedInputFile, CallbackQuery, Message
 
 from bot.api import XUIClient, XUIError
@@ -133,8 +136,8 @@ async def cb_me(query: CallbackQuery, user: User, api: XUIClient, lang: str = "e
         remark_map = {o.id: (o.remark or o.protocol) for o in options}
         remarks = [remark_map.get(i, f"#{i}") for i in client.inbound_ids]
         inbound_remarks = remarks or None
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Failed to fetch inbound options: %s", exc)
 
     await query.message.edit_text(render_account(client, lang, inbound_remarks, tz), reply_markup=account_kb(lang))
 

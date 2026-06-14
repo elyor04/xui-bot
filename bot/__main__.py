@@ -20,6 +20,7 @@ from bot.db import close_db, init_db
 from bot.db.fsm import TortoiseStorage
 from bot.handlers import build_router
 from bot.middlewares.auth import AuthMiddleware
+from bot.middlewares.throttle import ThrottleMiddleware
 from bot.tasks.report import send_report
 
 logging.basicConfig(
@@ -60,6 +61,10 @@ async def main() -> None:
     dp.message.outer_middleware(auth)
     dp.callback_query.outer_middleware(auth)
     dp.inline_query.outer_middleware(auth)
+
+    throttle = ThrottleMiddleware(admin_ids=set(settings.admin_ids))
+    dp.message.outer_middleware(throttle)
+    dp.callback_query.outer_middleware(throttle)
 
     dp.include_router(build_router())
 
